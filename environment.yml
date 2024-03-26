@@ -1,0 +1,22 @@
+name: stranger-sections-2-env
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10.*
+  - pip
+
+  - pip:
+      - jupyter
+      - pyyaml
+      - tqdm
+      - numpy
+      - pandas
+      - scikit-learn
+      - opencv-python
+      - torch
+      - torchvision
+      - transformers
+      - pytorch-lightning
+      - wandb
+      - plotly
+      - matplotlib
