@@ -1,6 +1,6 @@
 # Stranger Sections 2
 
-<img src='assets/Breadcrumbsstranger-sections-2.png'>
+<img src='assets/stranger-sections-2.png'>
 
 This project was made possible by our compute partners [2CRSi](https://2crsi.com/) and [NVIDIA](https://www.nvidia.com/).
 
