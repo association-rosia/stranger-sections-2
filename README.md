@@ -1,4 +1,4 @@
-# Stranger Sections 2
+# 🔬 Stranger Sections 2
 
 <img src='assets/stranger-sections-2.png'>
 
