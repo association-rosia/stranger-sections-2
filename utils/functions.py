@@ -68,18 +68,18 @@ def get_run(run_id: str) -> wandb_api.Run:
     return run
 
 
-def load_image(config: uC.Config, tile: dict) -> Image.Image:
-    path = os.path.join(config.path.raw.train.labeled, f'{tile["image"]}.JPG')
+def load_image(config, tile: dict) -> Image.Image:
+    path = os.path.join(config.path.data.raw.train.labeled, f'{tile["image"]}.JPG')
 
     with open(path, mode='br') as f:
-        return Image.open(f).convert('RGB')
+        return Image.open(f).convert('RGB')  # TODO: crop using bbox
 
 
-def load_label(config: uC.Config, tile: dict) -> np.ndarray:
-    path = os.path.join(config.path.raw.train.labels, f'{tile["image"]}_gt.npy')
+def load_label(config, tile: dict) -> np.ndarray:
+    path = os.path.join(config.path.data.raw.train.labels, f'{tile["image"]}_gt.npy')
 
     with open(path, mode='br') as f:
-        return np.load(f)
+        return np.load(f)  # TODO: crop using bbox
 
 
 def train_val_split_tiles(config, tiles: list):
