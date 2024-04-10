@@ -1,16 +1,13 @@
+from enum import Enum
 from typing import overload
-from functools import partial
 
 import numpy as np
 import torch
-import torchvision.transforms.v2.functional as tv2F
 import torchvision.transforms.v2 as tv2T
-from  torchvision import tv_tensors
 from PIL import Image
-from enum import Enum
-
-
+from torchvision import tv_tensors
 from transformers import Mask2FormerImageProcessor
+
 
 class ProcessorMode(Enum):
     """Processor modes
@@ -18,10 +15,10 @@ class ProcessorMode(Enum):
     """
     TRAINING = 0
     EVAL = 1
-    INFERING = 2
+    INFERENCE = 2
 
 
-class SupervisedProcessor:
+class SS2SupervisedProcessor:
     def __init__(self, config, processor_mode: ProcessorMode) -> None:
         self.config = config
         self.processor_mode = processor_mode
@@ -29,22 +26,23 @@ class SupervisedProcessor:
         self.transforms = self._get_transforms()
 
     @overload
-    def preprocess(self, images: Image.Image, masks: np.ndarray=None) -> torch.Tensor:
+    def preprocess(self, images: Image.Image, masks: np.ndarray = None) -> torch.Tensor:
         ...
 
     @overload
-    def preprocess(self, images: list[Image.Image], masks: list[np.ndarray]=None) -> torch.Tensor:
+    def preprocess(self, images: list[Image.Image], masks: list[np.ndarray] = None) -> torch.Tensor:
         ...
 
-    def preprocess(self, images: Image.Image | list[Image.Image], masks: np.ndarray | list[np.ndarray]=None) -> torch.Tensor:
+    def preprocess(self, images: Image.Image | list[Image.Image],
+                   masks: np.ndarray | list[np.ndarray] = None) -> torch.Tensor:
         if not isinstance(images, list):
             images = [images]
-        
+
         if self.processor_mode in [ProcessorMode.TRAINING, ProcessorMode.EVAL]:
             if not isinstance(masks, list):
                 masks = [masks]
             images, masks = self._preprocess_image_label(images, masks)
-        elif self.processor_mode == ProcessorMode.INFERING:
+        elif self.processor_mode == ProcessorMode.INFERENCE:
             images = self._preprocess_image(images)
             masks = None
 
@@ -63,7 +61,7 @@ class SupervisedProcessor:
             )
             images_processed.append(image_processed)
             masks_processed.append(mask_processed)
-        
+
         return images_processed, masks_processed
 
     @staticmethod
@@ -83,7 +81,8 @@ class SupervisedProcessor:
 
         return processor
 
-    def _get_training_transforms(self):
+    @staticmethod
+    def _get_training_transforms():
         transforms = tv2T.Compose([
             tv2T.ToDtype(dtype=torch.float32, scale=True),
             # tv2T.Lambda(
@@ -99,7 +98,8 @@ class SupervisedProcessor:
 
         return transforms
 
-    def _get_eval_transforms(self):
+    @staticmethod
+    def _get_eval_transforms():
         transforms = tv2T.Compose([
             tv2T.ToDtype(dtype=torch.float32),
             # tv2T.Lambda(
@@ -118,20 +118,21 @@ class SupervisedProcessor:
     def _get_transforms(self):
         if self.processor_mode == ProcessorMode.TRAINING:
             return self._get_training_transforms()
-        elif self.processor_mode in [ProcessorMode.EVAL, ProcessorMode.INFERING]:
+        elif self.processor_mode in [ProcessorMode.EVAL, ProcessorMode.INFERENCE]:
             return self._get_eval_transforms()
 
 
 def make_training_processor(config):
-    return SupervisedProcessor(config, ProcessorMode.TRAINING)
+    return SS2SupervisedProcessor(config, ProcessorMode.TRAINING)
 
 
 def make_eval_processor(config):
-    return SupervisedProcessor(config, ProcessorMode.EVAL)
+    return SS2SupervisedProcessor(config, ProcessorMode.EVAL)
 
 
 def make_infering_processor(config):
-    return SupervisedProcessor(config, ProcessorMode.INFERING)
+    return SS2SupervisedProcessor(config, ProcessorMode.INFERENCE)
+
 
 def _debug():
     from src import utils
@@ -149,6 +150,7 @@ def _debug():
     i_output = inf_preprocessor.preprocess(img)
 
     return
+
 
 if __name__ == '__main__':
     _debug()

@@ -1,12 +1,13 @@
-from typing_extensions import Self
-
 import torch
 import wandb.apis.public as wandb_api
+from PIL import Image
+from typing_extensions import Self
+
+import src.data.supervised.collate as spv_collate
+import src.data.supervised.processor as spv_processor
 from src import utils
 from src.models.train_model import load_model
-import src.data.supervised.processor as spv_processor
-import src.data.supervised.collate as spv_collate
-from PIL import Image
+
 
 class InferenceModel(torch.nn.Module):
     def __init__(
@@ -39,8 +40,8 @@ class InferenceModel(torch.nn.Module):
         self = cls(config, model, map_location=map_location)
 
         return self
-    
-    def _get_processor(self) -> spv_processor.SupervisedProcessor:
+
+    def _get_processor(self) -> spv_processor.SS2SupervisedProcessor:
         if self.config['mode'] == 'supervised':
             return spv_processor.make_infering_processor(self.config)
         else:

@@ -1,4 +1,5 @@
 import os
+
 import pytorch_lightning as pl
 import torch
 import wandb
@@ -7,11 +8,10 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 from transformers import Mask2FormerForUniversalSegmentation
 
-import src.data.supervised.dataset as spv_dataset
-from src.data.supervised.processor import SupervisedProcessor
 import src.data.supervised.collate as spv_collate
-
+import src.data.supervised.dataset as spv_dataset
 from src import utils
+from src.data.supervised.processor import SS2SupervisedProcessor
 
 
 class Mask2FormerLightning(pl.LightningModule):
@@ -19,7 +19,7 @@ class Mask2FormerLightning(pl.LightningModule):
         super(Mask2FormerLightning, self).__init__()
         self.config = config
         self.model = _load_base_model(self.config)
-        self.processor = SupervisedProcessor.get_hugingface_processor(config)
+        self.processor = SS2SupervisedProcessor.get_hugingface_processor(config)
         self.class_labels = {0: 'Background', 1: 'Inertinite', 2: 'Vitrinite', 3: 'Liptinite'}
 
     def forward(self, inputs):

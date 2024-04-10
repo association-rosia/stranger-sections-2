@@ -1,6 +1,5 @@
 import os
 
-import torch
 import wandb
 import wandb.apis.public as wandb_api
 import yaml
@@ -13,18 +12,50 @@ def get_notebooks_path(path: str) -> str:
     return new_path
 
 
-def load_config(yml_file: str, sub_config: str = None) -> dict:
+def load_config(yaml_file: str, sub_config: str = None):
     if sub_config:
-        root = os.path.join('configs', sub_config, yml_file)
+        root = os.path.join('configs', sub_config, f'{yaml_file}.yaml')
     else:
-        root = os.path.join('configs', yml_file)
-    
+        root = os.path.join('configs', f'{yaml_file}.yaml')
+
     path = get_notebooks_path(root)
 
     with open(path, 'r') as f:
         config = yaml.safe_load(f)
 
+    config = Config(config)
+
     return config
+
+
+class Config:
+    def __init__(self, config_dict):
+        if not isinstance(config_dict, dict):
+            raise ValueError('Config must be initialized with a dictionary.')
+        self.config = config_dict
+        self._recursive_objectify(self.config)
+
+    def _recursive_objectify(self, dictionary):
+        for key, value in dictionary.items():
+            if isinstance(value, dict):
+                value = self._make_subconfig(value)
+
+            setattr(self, key, value)
+
+    @staticmethod
+    def _make_subconfig(dictionary):
+        subconfig = type('SubConfig', (), {})
+
+        for k, v in dictionary.items():
+            if isinstance(v, dict):
+                v = Config._make_subconfig(v)
+
+            setattr(subconfig, k, v)
+
+        return subconfig
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}({self.config})'
 
 
 def get_config() -> dict:

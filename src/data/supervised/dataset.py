@@ -3,12 +3,14 @@ from glob import glob
 
 from torch.utils.data import Dataset
 
-from src import utils
-import src.data.utils as dt_utils
 import src.data.supervised.processor as spv_processor
+import src.data.utils as dt_utils
+from src import utils
 
-class SupervisedDataset(Dataset):
-    def __init__(self, config: dict, image_paths: list, label_paths: list, processor: spv_processor.SupervisedProcessor) -> None:
+
+class SS2SupervisedDataset(Dataset):
+    def __init__(self, config: dict, image_paths: list, label_paths: list,
+                 processor: spv_processor.SS2SupervisedProcessor) -> None:
         super().__init__()
         self.config = config
         self.processor = processor
@@ -27,7 +29,7 @@ class SupervisedDataset(Dataset):
         return inputs
 
 
-def make_train_dataset(config) -> SupervisedDataset:
+def make_train_dataset(config) -> SS2SupervisedDataset:
     data_folder = utils.get_notebooks_path(os.path.join(config['path']['data']))
 
     pathname_images = os.path.join(data_folder, 'raw', 'train', 'labeled', '*.JPG')
@@ -39,10 +41,10 @@ def make_train_dataset(config) -> SupervisedDataset:
     train_image_paths, _, train_label_paths, _ = dt_utils.train_val_split(config, image_paths, label_paths)
     processor = spv_processor.make_training_processor(config)
 
-    return SupervisedDataset(config, train_image_paths, train_label_paths, processor)
+    return SS2SupervisedDataset(config, train_image_paths, train_label_paths, processor)
 
 
-def make_val_dataset(config) -> SupervisedDataset:
+def make_val_dataset(config) -> SS2SupervisedDataset:
     data_folder = utils.get_notebooks_path(os.path.join(config['path']['data']))
     
     pathname_images = os.path.join(data_folder, 'raw', 'train', 'labeled', '*.JPG')
@@ -54,7 +56,7 @@ def make_val_dataset(config) -> SupervisedDataset:
     _, val_image_paths, _, val_label_paths = dt_utils.train_val_split(config, image_paths, label_paths)
     processor = spv_processor.make_eval_processor(config)
 
-    return SupervisedDataset(config, val_image_paths, val_label_paths, processor)
+    return SS2SupervisedDataset(config, val_image_paths, val_label_paths, processor)
 
 
 def _debug():

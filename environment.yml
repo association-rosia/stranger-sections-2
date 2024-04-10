@@ -19,3 +19,4 @@ dependencies:
       - wandb
       - plotly
       - matplotlib
+      - hydra-core
