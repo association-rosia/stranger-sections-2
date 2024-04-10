@@ -6,16 +6,15 @@ from torch.utils.data import Dataset
 import src.data.supervised.processor as spv_processor
 import src.data.utils as dt_utils
 from src import utils
+import src.data.tiling
 
 
 class SS2SupervisedDataset(Dataset):
-    def __init__(self, config: dict, image_paths: list, label_paths: list,
-                 processor: spv_processor.SS2SupervisedProcessor) -> None:
+    def __init__(self, config: uC.Config, tiles: list, processor: spv_processor.SS2SupervisedProcessor):
         super().__init__()
         self.config = config
+        self.tiles = tiles
         self.processor = processor
-        self.images = image_paths
-        self.labels = label_paths
 
     def __len__(self) -> int:
         return len(self.images)
@@ -23,46 +22,31 @@ class SS2SupervisedDataset(Dataset):
     def __getitem__(self, idx):
         image = dt_utils._image_loader(self.images[idx])
         label = dt_utils._label_loader(self.labels[idx])
-
         inputs = self.processor.preprocess(image, label)
 
         return inputs
 
 
-def make_train_dataset(config) -> SS2SupervisedDataset:
-    data_folder = utils.get_notebooks_path(os.path.join(config['path']['data']))
-
-    pathname_images = os.path.join(data_folder, 'raw', 'train', 'labeled', '*.JPG')
-    image_paths = sorted(glob(pathname_images))
-
-    pathname_labels = os.path.join(data_folder, 'raw', 'train', 'labels', '*.npy')
-    label_paths = sorted(glob(pathname_labels))
-
-    train_image_paths, _, train_label_paths, _ = dt_utils.train_val_split(config, image_paths, label_paths)
+def make_train_dataset(config: uC.Config) -> SS2SupervisedDataset:
+    tiles = tiling.get_tiles()
+    train_tiles, _ = dt_utils.train_val_split_tiles(config, tiles)
     processor = spv_processor.make_training_processor(config)
 
-    return SS2SupervisedDataset(config, train_image_paths, train_label_paths, processor)
+    return SS2SupervisedDataset(config, tiles, processor)
 
 
-def make_val_dataset(config) -> SS2SupervisedDataset:
-    data_folder = utils.get_notebooks_path(os.path.join(config['path']['data']))
-    
-    pathname_images = os.path.join(data_folder, 'raw', 'train', 'labeled', '*.JPG')
-    image_paths = sorted(glob(pathname_images))
-   
-    pathname_labels = os.path.join(data_folder, 'raw', 'train', 'labels', '*.npy')
-    label_paths = sorted(glob(pathname_labels))
-    
-    _, val_image_paths, _, val_label_paths = dt_utils.train_val_split(config, image_paths, label_paths)
+def make_val_dataset(config: uC.Config) -> SS2SupervisedDataset:
+    tiles = tiling.get_tiles()
+    _, val_tiles = dt_utils.train_val_split_tiles(config, tiles)
     processor = spv_processor.make_eval_processor(config)
 
-    return SS2SupervisedDataset(config, val_image_paths, val_label_paths, processor)
+    return SS2SupervisedDataset(config, tiles, processor)
 
 
 def _debug():
     from src import utils
     from torch.utils.data import DataLoader
-    from src.data.supervised.collate import get_collate_fn
+    from src.data.supervised.collate import get_collate_fn_training
 
     config = utils.get_config()
     wandb_config = utils.load_config('mask2former.yml', 'segmentation')
@@ -71,7 +55,9 @@ def _debug():
     train_dataset = make_train_dataset(config)
     val_dataset = make_val_dataset(config)
 
-    for batch in DataLoader(train_dataset, batch_size=12, collate_fn=get_collate_fn(config)):
+    train_dataloader = DataLoader(train_dataset, batch_size=12, collate_fn=get_collate_fn_training(config))
+
+    for batch in train_dataloader:
         break
 
     return

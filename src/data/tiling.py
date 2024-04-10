@@ -3,10 +3,10 @@ import os
 
 import numpy as np
 
-from src import utils
+from utils import classes as uC
 
 
-def get_tiles(size_tile=384):
+def get_tiles(size_tile: int = 384):
     tiles = []
     config = utils.load_config('main')
     path_labels = config.path.data.raw.train.labels
@@ -29,7 +29,7 @@ def get_tiles(size_tile=384):
     return tiles
 
 
-def get_num_tiles(config, size_tile):
+def get_num_tiles(config: uC.Config, size_tile: int):
     size_h = config.data.size_h
     size_w = config.data.size_w
     num_h_tiles = config.data.size_h / size_tile
@@ -43,7 +43,7 @@ def get_num_tiles(config, size_tile):
     return num_h_tiles, overlap_h, num_w_tiles, overlap_w
 
 
-def get_coords_tile(config, size_tile, num_h_tiles, overlap_h, num_w_tiles, overlap_w):
+def get_coords_tile(config: uC.Config, size_tile: int, num_h_tiles: int, overlap_h: int, num_w_tiles: int, overlap_w: int):
     size_h = config.data.size_h
     size_w = config.data.size_w
     coords_tile = []

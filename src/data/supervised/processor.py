@@ -7,22 +7,20 @@ import torchvision.transforms.v2 as tv2T
 from PIL import Image
 from torchvision import tv_tensors
 from transformers import Mask2FormerImageProcessor
+from utils import classes as uC
 
 
 class ProcessorMode(Enum):
-    """Processor modes
-    Available modes are ``training`` and ``eval``.
-    """
     TRAINING = 0
     EVAL = 1
     INFERENCE = 2
 
 
 class SS2SupervisedProcessor:
-    def __init__(self, config, processor_mode: ProcessorMode) -> None:
+    def __init__(self, config: uC.Config, processor_mode: ProcessorMode) -> None:
         self.config = config
         self.processor_mode = processor_mode
-        self.hf_processor = self.get_hugingface_processor(config)
+        self.hf_processor = self.get_huggingface_processor(config)
         self.transforms = self._get_transforms()
 
     @overload
@@ -65,18 +63,18 @@ class SS2SupervisedProcessor:
         return images_processed, masks_processed
 
     @staticmethod
-    def get_hugingface_processor(config: dict):
-        if config['model_name'] == 'mask2former':
+    def get_huggingface_processor(config: uC.Config):
+        if config.model_name == 'mask2former':
             processor = Mask2FormerImageProcessor.from_pretrained(
-                pretrained_model_name_or_path=config['model_id'],
+                pretrained_model_name_or_path=config.model_id,
                 do_rescale=False,
                 do_normalize=True,
                 reduce_labels=True,
                 do_pad=False,
                 do_resize=True,
-                image_mean=config['data']['mean'],
-                image_std=config['data']['std'],
-                num_labels=config['num_labels'],
+                image_mean=config.data.mean,
+                image_std=config.data.std,
+                num_labels=config.num_labels,
             )
 
         return processor
@@ -86,14 +84,14 @@ class SS2SupervisedProcessor:
         transforms = tv2T.Compose([
             tv2T.ToDtype(dtype=torch.float32, scale=True),
             # tv2T.Lambda(
-            #     partial(tv2F.adjust_contrast, contrast_factor=self.config['contrast_factor']),
+            #     partial(tv2F.adjust_contrast, contrast_factor=self.config.contrast_factor']),
             #     tv_tensors.Image
             # ),
             # tv2T.Resize(
-            #     self.config['size'],
+            #     self.config.size'],
             #     interpolation=tv2F.InterpolationMode.BICUBIC
             # ),
-            # tv2T.Normalize(mean=self.config['data']['mean'], std=self.config['data']['std'])
+            # tv2T.Normalize(mean=self.config.data']['mean'], std=self.config.data']['std'])
         ])
 
         return transforms
@@ -103,14 +101,14 @@ class SS2SupervisedProcessor:
         transforms = tv2T.Compose([
             tv2T.ToDtype(dtype=torch.float32),
             # tv2T.Lambda(
-            #     partial(tv2F.adjust_contrast, contrast_factor=self.config['contrast_factor']),
+            #     partial(tv2F.adjust_contrast, contrast_factor=self.config.contrast_factor']),
             #     tv_tensors.Image
             # ),
             # tv2T.Resize(
-            #     self.config['size'],
+            #     self.config.size'],
             #     interpolation=tv2F.InterpolationMode.BICUBIC
             # ),
-            # tv2T.Normalize(mean=self.config['data']['mean'], std=self.config['data']['std'])
+            # tv2T.Normalize(mean=self.config.data']['mean'], std=self.config.data']['std'])
         ])
 
         return transforms
@@ -122,23 +120,22 @@ class SS2SupervisedProcessor:
             return self._get_eval_transforms()
 
 
-def make_training_processor(config):
+def make_training_processor(config: uC.Config):
     return SS2SupervisedProcessor(config, ProcessorMode.TRAINING)
 
 
-def make_eval_processor(config):
+def make_eval_processor(config: uC.Config):
     return SS2SupervisedProcessor(config, ProcessorMode.EVAL)
 
 
-def make_infering_processor(config):
+def make_infering_processor(config: uC.Config):
     return SS2SupervisedProcessor(config, ProcessorMode.INFERENCE)
 
 
 def _debug():
     from src import utils
-
-    config = utils.get_config()
-    wandb_config = utils.load_config('mask2former.yml', 'supervised')
+    config = utils.load_config('main')
+    wandb_config = utils.load_config('mask2former', 'supervised')
     config.update(wandb_config)
     train_preprocessor = make_training_processor(config)
     eval_preprocessor = make_eval_processor(config)
@@ -148,8 +145,6 @@ def _debug():
     t_output = train_preprocessor.preprocess(img, mask)
     e_output = eval_preprocessor.preprocess(img, mask)
     i_output = inf_preprocessor.preprocess(img)
-
-    return
 
 
 if __name__ == '__main__':

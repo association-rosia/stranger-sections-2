@@ -10,16 +10,16 @@ from transformers import Mask2FormerForUniversalSegmentation
 
 import src.data.supervised.collate as spv_collate
 import src.data.supervised.dataset as spv_dataset
-from src import utils
+from utils import classes as uC
 from src.data.supervised.processor import SS2SupervisedProcessor
 
 
 class Mask2FormerLightning(pl.LightningModule):
-    def __init__(self, config):
+    def __init__(self, config: uC.Config):
         super(Mask2FormerLightning, self).__init__()
         self.config = config
         self.model = _load_base_model(self.config)
-        self.processor = SS2SupervisedProcessor.get_hugingface_processor(config)
+        self.processor = SS2SupervisedProcessor.get_huggingface_processor(config)
         self.class_labels = {0: 'Background', 1: 'Inertinite', 2: 'Vitrinite', 3: 'Liptinite'}
 
     def forward(self, inputs):
@@ -31,7 +31,7 @@ class Mask2FormerLightning(pl.LightningModule):
         inputs = batch
         outputs = self.forward(inputs)
         loss = outputs['loss']
-        self.log('train/loss', loss, on_epoch=True, sync_dist=True, batch_size=self.config['batch_size'])
+        self.log('train/loss', loss, on_epoch=True, sync_dist=True, batch_size=self.config.batch_size)
 
         return loss
 
@@ -39,7 +39,7 @@ class Mask2FormerLightning(pl.LightningModule):
         inputs = batch
         outputs = self.forward(inputs)
         loss = outputs['loss']
-        self.log('val/loss', loss, on_epoch=True, sync_dist=True, batch_size=self.config['batch_size'])
+        self.log('val/loss', loss, on_epoch=True, sync_dist=True, batch_size=self.config.batch_size)
 
         if batch_idx == 0:
             self.log_image(inputs, outputs)
@@ -53,17 +53,18 @@ class Mask2FormerLightning(pl.LightningModule):
         ground_truth = self.get_original_mask(inputs['mask_labels'][0])
         ground_truth = ground_truth.numpy(force=True)
 
-        wandb.log(
-            {'val/prediction': wandb.Image(pixel_values, masks={
+        wandb.log({
+            'val/prediction': wandb.Image(pixel_values, masks={
                 'predictions': {
                     'mask_data': outputs,
-                    'class_labels' : self.class_labels, 
+                    'class_labels': self.class_labels,
                 },
                 'ground_truth': {
                     'mask_data': ground_truth,
-                    'class_labels' : self.class_labels,
+                    'class_labels': self.class_labels,
                 }
-            })})
+            })
+        })
 
     @staticmethod
     def get_original_mask(masks):
@@ -79,13 +80,13 @@ class Mask2FormerLightning(pl.LightningModule):
         return output_mask
 
     def configure_optimizers(self):
-        optimizer = AdamW(params=self.model.parameters(), lr=self.config['lr'])
+        optimizer = AdamW(params=self.model.parameters(), lr=self.config.lr)
         scheduler = {
             'scheduler': ReduceLROnPlateau(
                 optimizer,
                 mode='min',
-                factor=self.config['reduce_lr_on_plateau_factor'],
-                patience=self.config['reduce_lr_on_plateau_patience'],
+                factor=self.config.reduce_lr_on_plateau_factor,
+                patience=self.config.reduce_lr_on_plateau_patience,
                 verbose=True
             ),
             'monitor': 'val/loss',
@@ -97,8 +98,8 @@ class Mask2FormerLightning(pl.LightningModule):
     def train_dataloader(self):
         return DataLoader(
             dataset=spv_dataset.make_train_dataset(self.config),
-            batch_size=self.config['batch_size'],
-            num_workers=self.config['num_workers'],
+            batch_size=self.config.batch_size,
+            num_workers=self.config.num_workers,
             shuffle=True,
             drop_last=True,
             pin_memory=True,
@@ -108,8 +109,8 @@ class Mask2FormerLightning(pl.LightningModule):
     def val_dataloader(self):
         return DataLoader(
             dataset=spv_dataset.make_val_dataset(self.config),
-            batch_size=self.config['batch_size'],
-            num_workers=self.config['num_workers'],
+            batch_size=self.config.batch_size,
+            num_workers=self.config.num_workers,
             shuffle=False,
             drop_last=True,
             pin_memory=True,
@@ -117,10 +118,10 @@ class Mask2FormerLightning(pl.LightningModule):
         )
 
 
-def _load_base_model(config):
+def _load_base_model(config: uC.Config):
     model = Mask2FormerForUniversalSegmentation.from_pretrained(
-        pretrained_model_name_or_path=config['model_id'],
-        num_labels=config['num_labels'],
+        pretrained_model_name_or_path=config.model_id,
+        num_labels=config.num_labels,
         # class_weight=1.0,
         # mask_weight=1.0,
         # dice_weight=10.0,
@@ -131,10 +132,10 @@ def _load_base_model(config):
 
 
 def load_model(config, map_location=None):
-    if config['checkpoint'] is None:
+    if config.checkpoint is None:
         lightning = Mask2FormerLightning(config)
     else:
-        path_checkpoint = os.path.join(config['path']['models'], config['checkpoint'])
+        path_checkpoint = os.path.join(config.path.models, config.checkpoint)
         lightning = Mask2FormerLightning.load_from_checkpoint(path_checkpoint, config=config, map_location=map_location)
 
     return lightning
@@ -142,12 +143,11 @@ def load_model(config, map_location=None):
 
 def _debug():
     config = utils.get_config()
-    wandb_config = utils.load_config('mask2former.yml', 'segmentation')
+    wandb_config = utils.load_config('mask2former', 'segmentation')
     config.update(wandb_config)
     model = load_model(config)
 
     return
-
 
 
 if __name__ == '__main__':

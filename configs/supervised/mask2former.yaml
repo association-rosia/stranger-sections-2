@@ -1,5 +1,5 @@
-model_name: 'mask2former'
 mode: 'supervised'
+model_name: 'mask2former'
 model_id: 'facebook/mask2former-swin-large-mapillary-vistas-semantic'
 checkpoint:
 
