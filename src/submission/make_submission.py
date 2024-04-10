@@ -1,9 +1,11 @@
 import os
 from glob import glob
-from PIL import Image
+
 import numpy as np
-from utils import fonctions as uF
+from PIL import Image
+
 from src.submission.model import InferenceModel
+from utils import functions as uF
 
 
 def main():

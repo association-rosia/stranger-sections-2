@@ -5,8 +5,8 @@ from typing_extensions import Self
 
 import src.data.supervised.collate as spv_collate
 import src.data.supervised.processor as spv_processor
-from utils import classes as uC
 from src.models.train_model import load_model
+from utils import classes as uC
 
 
 class InferenceModel(torch.nn.Module):

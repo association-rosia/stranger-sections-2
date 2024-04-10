@@ -1,4 +1,4 @@
-from utils.fonctions import load_config
+from utils.functions import load_config
 
 
 class Config:

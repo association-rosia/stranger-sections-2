@@ -3,10 +3,9 @@ import os
 import pytorch_lightning as pl
 import wandb
 
-from utils import classes as uC
-from utils import fonctions as uF
-
 import src.models.supervised.mask2former.lightning as spv_m2f
+from utils import classes as uC
+from utils import functions as uF
 
 
 def main():
@@ -26,7 +25,7 @@ def load_model(config: uC.Config, map_location=None):
 
     if 'model' not in locals():
         raise ValueError(f"mode={config.mode} and model_name={config.model_name} doesn't exist.")
-    
+
     return model
 
 

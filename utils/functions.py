@@ -1,10 +1,12 @@
 import os
 
+import numpy as np
 import wandb
 import wandb.apis.public as wandb_api
 import yaml
-
-from utils.classes import Config
+from PIL import Image
+from sklearn.model_selection import train_test_split
+from utils import classes as uC
 
 
 def get_notebooks_path(path: str) -> str:
@@ -15,6 +17,8 @@ def get_notebooks_path(path: str) -> str:
 
 
 def load_config(yaml_file: str, mode: str = None, loading: str = 'object'):
+    from utils.classes import Config
+
     if mode:
         root = os.path.join('configs', mode, f'{yaml_file}.yaml')
     else:
@@ -64,21 +68,30 @@ def get_run(run_id: str) -> wandb_api.Run:
     return run
 
 
-def _image_loader(path: str) -> Image.Image:
+def load_image(config: uC.Config, tile: dict) -> Image.Image:
+    path = os.path.join(config.path.raw.train.labeled, f'{tile["image"]}.JPG')
+
     with open(path, mode='br') as f:
         return Image.open(f).convert('RGB')
 
 
-def _label_loader(path: str) -> np.ndarray:
+def load_label(config: uC.Config, tile: dict) -> np.ndarray:
+    path = os.path.join(config.path.raw.train.labels, f'{tile["image"]}_gt.npy')
+
     with open(path, mode='br') as f:
         return np.load(f)
 
 
-def train_val_split_tiles(config: uC.Config, tiles: list):
-    train_tiles, val_tiles = train_test_split(
-        tiles,
+def train_val_split_tiles(config, tiles: list):
+    images = list(set([tile['image'] for tile in tiles]))
+
+    train_images, val_images = train_test_split(
+        images,
         train_size=0.8,
-        random_state=config.random_state
+        random_state=config.random_state,
     )
+
+    train_tiles = [tile for tile in tiles if tile['image'] in train_images]
+    val_tiles = [tile for tile in tiles if tile['image'] in val_images]
 
     return train_tiles, val_tiles

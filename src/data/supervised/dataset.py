@@ -1,12 +1,9 @@
-import os
-from glob import glob
-
 from torch.utils.data import Dataset
 
 import src.data.supervised.processor as spv_processor
-import src.data.utils as dt_utils
-from src import utils
-import src.data.tiling
+from src.data import tiling
+from utils import classes as uC
+from utils import functions as uF
 
 
 class SS2SupervisedDataset(Dataset):
@@ -17,11 +14,11 @@ class SS2SupervisedDataset(Dataset):
         self.processor = processor
 
     def __len__(self) -> int:
-        return len(self.images)
-    
+        return len(self.tiles)
+
     def __getitem__(self, idx):
-        image = dt_utils._image_loader(self.images[idx])
-        label = dt_utils._label_loader(self.labels[idx])
+        image = uF.load_image(self.config, self.tiles[idx])
+        label = uF.load_label(self.config, self.tiles[idx])
         inputs = self.processor.preprocess(image, label)
 
         return inputs
@@ -29,7 +26,7 @@ class SS2SupervisedDataset(Dataset):
 
 def make_train_dataset(config: uC.Config) -> SS2SupervisedDataset:
     tiles = tiling.get_tiles()
-    train_tiles, _ = dt_utils.train_val_split_tiles(config, tiles)
+    train_tiles, _ = uF.train_val_split_tiles(config, tiles)
     processor = spv_processor.make_training_processor(config)
 
     return SS2SupervisedDataset(config, tiles, processor)
@@ -37,25 +34,28 @@ def make_train_dataset(config: uC.Config) -> SS2SupervisedDataset:
 
 def make_val_dataset(config: uC.Config) -> SS2SupervisedDataset:
     tiles = tiling.get_tiles()
-    _, val_tiles = dt_utils.train_val_split_tiles(config, tiles)
+    _, val_tiles = uF.train_val_split_tiles(config, tiles)
     processor = spv_processor.make_eval_processor(config)
 
     return SS2SupervisedDataset(config, tiles, processor)
 
 
 def _debug():
-    from src import utils
     from torch.utils.data import DataLoader
     from src.data.supervised.collate import get_collate_fn_training
 
-    config = utils.get_config()
-    wandb_config = utils.load_config('mask2former.yml', 'segmentation')
-    config.update(wandb_config)
+    config = uF.load_config('main')
+    wandb_config = uF.load_config('mask2former', 'supervised')
+    config = uC.Config.merge(config, wandb_config)
 
     train_dataset = make_train_dataset(config)
     val_dataset = make_val_dataset(config)
 
-    train_dataloader = DataLoader(train_dataset, batch_size=12, collate_fn=get_collate_fn_training(config))
+    train_dataloader = DataLoader(
+        dataset=train_dataset,
+        batch_size=12,
+        collate_fn=get_collate_fn_training(config)
+    )
 
     for batch in train_dataloader:
         break

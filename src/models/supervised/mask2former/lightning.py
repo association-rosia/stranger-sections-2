@@ -10,8 +10,8 @@ from transformers import Mask2FormerForUniversalSegmentation
 
 import src.data.supervised.collate as spv_collate
 import src.data.supervised.dataset as spv_dataset
-from utils import classes as uC
 from src.data.supervised.processor import SS2SupervisedProcessor
+from utils import classes as uC
 
 
 class Mask2FormerLightning(pl.LightningModule):
