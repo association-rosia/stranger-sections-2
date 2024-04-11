@@ -1,6 +1,3 @@
-from utils.functions import load_config
-
-
 class Config:
     def __init__(self, config_dict):
         if not isinstance(config_dict, dict):
@@ -47,7 +44,7 @@ class Config:
 
 
 class RunDemo:
-    def __init__(self, config_file: str, id: str, name: str, sub_config: str = None) -> None:
-        self.config = load_config(config_file, sub_config)
+    def __init__(self, config: Config, id: str, name: str) -> None:
+        self.config = config
         self.name = name
         self.id = id

@@ -6,6 +6,7 @@ import wandb.apis.public as wandb_api
 import yaml
 from PIL import Image
 from sklearn.model_selection import train_test_split
+from utils import classes as uC
 
 
 def get_notebooks_path(path: str) -> str:
@@ -15,9 +16,7 @@ def get_notebooks_path(path: str) -> str:
     return new_path
 
 
-def load_config(yaml_file: str, mode: str = None, loading: str = 'object'):
-    from utils.classes import Config
-
+def load_config(yaml_file: str, mode: str = None, loading: str = 'object') -> dict | uC.Config:
     if mode:
         root = os.path.join('configs', mode, f'{yaml_file}.yaml')
     else:
@@ -29,14 +28,14 @@ def load_config(yaml_file: str, mode: str = None, loading: str = 'object'):
         config = yaml.safe_load(f)
 
     if loading == 'object':
-        config = Config(config)
+        config = uC.Config(config)
 
     return config
 
 
-def init_wandb(yml_file: str, mode: str) -> dict:
+def init_wandb(yml_file: str, mode: str) -> uC.Config:
     config = load_config('main')
-    wandb_dir = get_notebooks_path(config['path']['logs'])
+    wandb_dir = get_notebooks_path(config.path.logs)
     os.makedirs(wandb_dir, exist_ok=True)
     os.environ['WANDB_DIR'] = os.path.abspath(wandb_dir)
     wandb_config = load_config(yml_file, mode, loading='dict')
@@ -47,7 +46,9 @@ def init_wandb(yml_file: str, mode: str) -> dict:
         config=wandb_config
     )
 
-    return wandb.config
+    config = uC.Config(wandb_config)
+
+    return config
 
 
 def get_run(run_id: str) -> wandb_api.Run:

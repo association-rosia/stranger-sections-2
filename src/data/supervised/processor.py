@@ -96,6 +96,10 @@ class SS2SupervisedProcessor:
             #     partial(tv2F.adjust_contrast, contrast_factor=self.config.contrast_factor']),
             #     tv_tensors.Image
             # ),
+            # tv2T.Lambda(
+            #     partial(tv2F.adjust_contrast, contrast_factor=self.config.contrast_factor']),
+            #     tv_tensors.Image
+            # ),
             # tv2T.Resize(
             #     self.config.size'],
             #     interpolation=tv2F.InterpolationMode.BICUBIC

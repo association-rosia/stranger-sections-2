@@ -11,7 +11,7 @@ from utils import functions as uF
 def main():
     config = uF.load_config('main')
     wandb_config = uF.init_wandb('mask2former', 'supervised')
-    config.update(wandb_config)
+    config = uC.Config.merge(config, wandb_config)
     model = load_model(config)
     trainer = get_trainer(config)
     trainer.fit(model=model)
