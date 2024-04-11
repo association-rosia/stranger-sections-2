@@ -1,13 +1,15 @@
-model_name: 'mask2former'
+dry: false
+
 mode: 'supervised'
-model_id: 'facebook/mask2former-swin-large-mapillary-vistas-semantic'
+model_name: 'mask2former'
+model_id: 'facebook/mask2former-swin-large-cityscapes-semantic'
 checkpoint:
 
 contrast_factor:
 num_labels: 4
 random_state: 42
 
-devices: [0, 1, 2, 3]
+devices: [ 0, 1, 2, 3 ]
 max_epochs: 100
 batch_size: 2
 num_workers: 23
@@ -17,4 +19,3 @@ reduce_lr_on_plateau_patience: 7
 reduce_lr_on_plateau_factor: 0.5
 lr: 0.000005
 
-dry: false

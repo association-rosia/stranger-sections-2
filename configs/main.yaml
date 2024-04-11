@@ -1,0 +1,23 @@
+path:
+  models: 'models'
+  reports: 'reports'
+  submissions: 'submissions'
+  logs: 'logs'
+  data:
+    raw:
+      train:
+        labeled: 'data/raw/train/labeled'
+        labels: 'data/raw/train/labels'
+        unlabeled: 'data/raw/train/unlabeled'
+      test:
+        unlabeled: 'data/raw/test/unlabeled'
+
+wandb:
+  entity: 'association-rosia'
+  project: 'stranger-sections-2'
+
+data:
+  size_h: 1024
+  size_w: 1360
+  mean: [ 0.4175, 0.3497, 0.2607 ]
+  std: [ 0.2044, 0.1909, 0.1867 ]

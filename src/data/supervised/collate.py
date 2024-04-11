@@ -1,5 +1,6 @@
 import torch
 
+
 def mask2former_collate_fn_training(batch):
     class_labels = []
     mask_labels = []
@@ -33,15 +34,14 @@ def mask2former_collate_fn_inference(batch):
 
 
 def get_collate_fn_training(config):
-    if config['model_name'] == 'mask2former':
+    if config.model_name == 'mask2former':
         return mask2former_collate_fn_training
     else:
-        raise ValueError(f"model_name expected 'mask2former' but received {config['model_name']}")
+        raise ValueError(f"model_name expected 'mask2former' but received {config.model_name}")
 
 
 def get_collate_fn_inference(config):
-    if config['model_name'] == 'mask2former':
+    if config.model_name == 'mask2former':
         return mask2former_collate_fn_inference
     else:
-        raise ValueError(f"model_name expected 'mask2former' but received {config['model_name']}")
-
+        raise ValueError(f"model_name expected 'mask2former' but received {config.model_name}")
