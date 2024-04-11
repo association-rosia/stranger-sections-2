@@ -1,3 +1,4 @@
+import os.path
 from enum import Enum
 from typing import overload
 
@@ -9,6 +10,7 @@ from torchvision import tv_tensors
 from transformers import Mask2FormerImageProcessor
 
 from utils import classes as uC
+from utils import functions as uF
 
 
 class ProcessorMode(Enum):
@@ -25,22 +27,26 @@ class SS2SupervisedProcessor:
         self.transforms = self._get_transforms()
 
     @overload
-    def preprocess(self, images: Image.Image, masks: np.ndarray = None) -> torch.Tensor:
+    def preprocess(self, images: np.ndarray, masks: np.ndarray = None) -> torch.Tensor:
         ...
 
     @overload
-    def preprocess(self, images: list[Image.Image], masks: list[np.ndarray] = None) -> torch.Tensor:
+    def preprocess(self, images: list[np.ndarray], masks: list[np.ndarray] = None) -> torch.Tensor:
         ...
 
-    def preprocess(self, images: Image.Image | list[Image.Image],
+    def preprocess(self,
+                   images: np.ndarray | list[np.ndarray],
                    masks: np.ndarray | list[np.ndarray] = None) -> torch.Tensor:
+
         if not isinstance(images, list):
             images = [images]
 
         if self.processor_mode in [ProcessorMode.TRAINING, ProcessorMode.EVAL]:
             if not isinstance(masks, list):
                 masks = [masks]
+
             images, masks = self._preprocess_image_label(images, masks)
+
         elif self.processor_mode == ProcessorMode.INFERENCE:
             images = self._preprocess_image(images)
             masks = None
@@ -53,11 +59,13 @@ class SS2SupervisedProcessor:
     def _preprocess_image_label(self, images, masks):
         images_processed = []
         masks_processed = []
+
         for image, mask in zip(images, masks):
             image_processed, mask_processed = self.transforms(
                 tv_tensors.Image(image),
                 tv_tensors.Mask(mask)
             )
+
             images_processed.append(image_processed)
             masks_processed.append(mask_processed)
 
@@ -129,20 +137,25 @@ def make_eval_processor(config: uC.Config):
     return SS2SupervisedProcessor(config, ProcessorMode.EVAL)
 
 
-def make_infering_processor(config: uC.Config):
+def make_inference_processor(config: uC.Config):
     return SS2SupervisedProcessor(config, ProcessorMode.INFERENCE)
 
 
 def _debug():
-    from src import utils
-    config = utils.load_config('main')
-    wandb_config = utils.load_config('mask2former', 'supervised')
-    config.update(wandb_config)
+    config = uF.load_config('main')
+    wandb_config = uF.load_config('mask2former', 'supervised')
+    config = uC.Config.merge(config, wandb_config)
+
     train_preprocessor = make_training_processor(config)
     eval_preprocessor = make_eval_processor(config)
-    inf_preprocessor = make_infering_processor(config)
-    img = Image.open('data/raw/train/labeled/17gw5j.JPG').convert('RGB')
-    mask = np.load('data/raw/train/labels/17gw5j_gt.npy')
+    inf_preprocessor = make_inference_processor(config)
+
+    path_img = os.path.join(config.path.data.raw.train.labeled, '17gw5j.JPG')
+    img = np.array(Image.open(path_img).convert('RGB'))
+
+    path_mask = os.path.join(config.path.data.raw.train.labels, '17gw5j_gt.npy')
+    mask = np.load(path_mask)
+
     t_output = train_preprocessor.preprocess(img, mask)
     e_output = eval_preprocessor.preprocess(img, mask)
     i_output = inf_preprocessor.preprocess(img)

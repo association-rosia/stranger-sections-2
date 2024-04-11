@@ -6,7 +6,6 @@ import wandb.apis.public as wandb_api
 import yaml
 from PIL import Image
 from sklearn.model_selection import train_test_split
-from utils import classes as uC
 
 
 def get_notebooks_path(path: str) -> str:
@@ -68,18 +67,27 @@ def get_run(run_id: str) -> wandb_api.Run:
     return run
 
 
-def load_image(config, tile: dict) -> Image.Image:
+def load_image(config, tile: dict) -> np.ndarray:
     path = os.path.join(config.path.data.raw.train.labeled, f'{tile["image"]}.JPG')
-
     with open(path, mode='br') as f:
-        return Image.open(f).convert('RGB')  # TODO: crop using bbox
+        image = np.array(Image.open(f).convert('RGB'))
+
+    x0, y0, x1, y1 = tile['bbox']
+    image = image[x0:x1, y0:y1, :]
+
+    return image
 
 
 def load_label(config, tile: dict) -> np.ndarray:
     path = os.path.join(config.path.data.raw.train.labels, f'{tile["image"]}_gt.npy')
 
     with open(path, mode='br') as f:
-        return np.load(f)  # TODO: crop using bbox
+        label = np.load(f)
+
+    x0, y0, x1, y1 = tile['bbox']
+    label = label[x0:x1, y0:y1]
+
+    return label
 
 
 def train_val_split_tiles(config, tiles: list):

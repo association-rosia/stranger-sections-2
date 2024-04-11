@@ -72,4 +72,3 @@ def get_coords_tile(config: uC.Config, size_tile: int, num_h_tiles: int, overlap
 
 if __name__ == "__main__":
     tiles = get_tiles()
-    print()
