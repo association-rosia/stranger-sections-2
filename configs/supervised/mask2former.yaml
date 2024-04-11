@@ -1,8 +1,8 @@
-dry: true
+dry: false
 
 mode: 'supervised'
 model_name: 'mask2former'
-model_id: 'facebook/mask2former-swin-large-mapillary-vistas-semantic'
+model_id: 'facebook/mask2former-swin-large-cityscapes-semantic'
 checkpoint:
 
 contrast_factor:
