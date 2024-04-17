@@ -1,12 +1,12 @@
 from torch.utils.data import Dataset
 
-import src.data.supervised.processor as spv_processor
+import src.data.semi_supervised.processor as spv_processor
 from src.data import tiling
 from utils import classes as uC
 from utils import functions as uF
 
 
-class SS2SupervisedDataset(Dataset):
+class SS2SemiSupervisedDataset(Dataset):
     def __init__(self, config: uC.Config, tiles: list, processor: spv_processor.SS2SupervisedProcessor):
         super().__init__()
         self.config = config
@@ -17,27 +17,31 @@ class SS2SupervisedDataset(Dataset):
         return len(self.tiles)
 
     def __getitem__(self, idx):
-        image = uF.load_image(self.config, self.tiles[idx])
+        unlabeled_image = None
+
+        labeled_image = uF.load_image(self.config, self.tiles[idx])
         label = uF.load_label(self.config, self.tiles[idx])
-        inputs = self.processor.preprocess(image, label)
+        labeled_inputs = self.processor.preprocess(labeled_image, label)
+
+        inputs = None
 
         return inputs
 
 
-def make_train_dataset(config: uC.Config) -> SS2SupervisedDataset:
-    tiles = tiling.get_tiles()
-    train_tiles, _ = uF.train_val_split_tiles(config, tiles)
+def make_train_dataset(config: uC.Config) -> SS2SemiSupervisedDataset:
+    labeled_tiles = tiling.main()
+    labeled_train_tiles, _ = uF.train_val_split_tiles(config, labeled_tiles)
     processor = spv_processor.make_training_processor(config)
 
-    return SS2SupervisedDataset(config, tiles, processor)
+    return SS2SemiSupervisedDataset(config, labeled_train_tiles, processor)
 
 
-def make_val_dataset(config: uC.Config) -> SS2SupervisedDataset:
-    tiles = tiling.get_tiles()
-    _, val_tiles = uF.train_val_split_tiles(config, tiles)
+def make_val_dataset(config: uC.Config) -> SS2SemiSupervisedDataset:
+    labeled_tiles = tiling.main()
+    _, labeled_val_tiles = uF.train_val_split_tiles(config, labeled_tiles)
     processor = spv_processor.make_eval_processor(config)
 
-    return SS2SupervisedDataset(config, tiles, processor)
+    return SS2SemiSupervisedDataset(config, labeled_val_tiles, processor)
 
 
 def _debug():
@@ -45,7 +49,7 @@ def _debug():
     from src.data.supervised.collate import get_collate_fn_training
 
     config = uF.load_config('main')
-    wandb_config = uF.load_config('mask2former', 'supervised')
+    wandb_config = uF.load_config('segformer', 'semi_supervised')
     config = uC.Config.merge(config, wandb_config)
 
     train_dataset = make_train_dataset(config)

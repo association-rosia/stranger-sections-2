@@ -7,13 +7,27 @@ from utils import classes as uC
 from utils import functions as uF
 
 
-def get_tiles(size_tile: int = 384):
-    tiles = []
+def main(labeled: bool = True, size_tile: int = 384):
     config = uF.load_config('main')
-    path_labels = config.path.data.raw.train.labels
-
     num_h_tiles, overlap_h, num_w_tiles, overlap_w = get_num_tiles(config, size_tile)
     bboxes = get_coords_tile(config, size_tile, num_h_tiles, overlap_h, num_w_tiles, overlap_w)
+    tiles = get_tiles(config, labeled, bboxes)
+
+    return tiles
+
+
+def get_tiles(config: uC.Config, labeled: bool, bboxes: list):
+    if labeled:
+        tiles = get_labeled_tiles(config, bboxes)
+    else:
+        tiles = get_unlabeled_tiles(config, bboxes)
+
+    return tiles
+
+
+def get_labeled_tiles(config: uC.Config, bboxes: list):
+    tiles = []
+    path_labels = config.path.data.raw.train.labels
     npy_files = [file for file in os.listdir(path_labels) if file.endswith('.npy')]
 
     for npy_file in npy_files:
@@ -26,6 +40,20 @@ def get_tiles(size_tile: int = 384):
 
             if len(np.unique(cropped_npy_data).tolist()) > 1:
                 tiles.append({'image': image, 'bbox': bbox})
+
+    return tiles
+
+
+def get_unlabeled_tiles(config: uC.Config, bboxes: list):
+    tiles = []
+    path_images = config.path.data.raw.train.unlabeled
+    files = [file for file in os.listdir(path_images) if file.endswith('.jpg')]
+
+    for file in files:
+        image = file.split('.')[0]
+
+        for bbox in bboxes:
+            tiles.append({'image': image, 'bbox': bbox})
 
     return tiles
 
@@ -71,4 +99,4 @@ def get_coords_tile(config: uC.Config, size_tile: int, num_h_tiles: int, overlap
 
 
 if __name__ == "__main__":
-    tiles = get_tiles()
+    tiles = main(labeled=False)
