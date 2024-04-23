@@ -3,7 +3,7 @@ from torch.utils.data import Dataset
 import src.data.supervised.processor as spv_processor
 from src.data import tiling
 from utils import classes as uC
-from utils import functions as uF
+from utils import func as uF
 
 
 class SS2SupervisedDataset(Dataset):
@@ -42,7 +42,7 @@ def make_val_dataset(config: uC.Config) -> SS2SupervisedDataset:
 
 def _debug():
     from torch.utils.data import DataLoader
-    from src.data.supervised.collate import get_collate_fn_training
+    from src.data.collate import get_collate_fn_training
 
     config = uF.load_config('main')
     wandb_config = uF.load_config('mask2former', 'supervised')

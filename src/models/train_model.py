@@ -5,7 +5,7 @@ import wandb
 
 import src.models.supervised.mask2former.lightning as spv_m2f
 from utils import classes as uC
-from utils import functions as uF
+from utils import func as uF
 
 
 def main():

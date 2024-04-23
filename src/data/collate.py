@@ -36,12 +36,16 @@ def mask2former_collate_fn_inference(batch):
 def get_collate_fn_training(config):
     if config.model_name == 'mask2former':
         return mask2former_collate_fn_training
+    elif config.model_name == 'segformer':
+        return None
     else:
-        raise ValueError(f"model_name expected 'mask2former' but received {config.model_name}")
+        raise ValueError(f"Unknown model_name: {config.model_name}")
 
 
 def get_collate_fn_inference(config):
     if config.model_name == 'mask2former':
         return mask2former_collate_fn_inference
+    elif config.model_name == 'segformer':
+        return None
     else:
-        raise ValueError(f"model_name expected 'mask2former' but received {config.model_name}")
+        raise ValueError(f"Unknown model_name: {config.model_name}")

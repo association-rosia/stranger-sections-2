@@ -5,6 +5,7 @@ model_name: 'segformer'
 model_id: 'nvidia/segformer-b0-finetuned-ade-512-512'
 checkpoint:
 
+size_tile: 512
 contrast_factor:
 num_labels: 4
 random_state: 42

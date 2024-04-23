@@ -3,7 +3,7 @@ import wandb.apis.public as wandb_api
 from PIL import Image
 from typing_extensions import Self
 
-import src.data.supervised.collate as spv_collate
+import src.data.collate as spv_collate
 import src.data.supervised.processor as spv_processor
 from src.models.train_model import load_model
 from utils import classes as uC

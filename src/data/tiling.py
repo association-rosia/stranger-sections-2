@@ -4,7 +4,7 @@ import os
 import numpy as np
 
 from utils import classes as uC
-from utils import functions as uF
+from utils import func as uF
 
 
 def main(labeled: bool = True, size_tile: int = 384):
