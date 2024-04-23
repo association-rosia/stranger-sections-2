@@ -40,7 +40,7 @@ class InferenceModel(torch.nn.Module):
 
         return self
 
-    def _get_processor(self) -> spv_processor.SS2SupervisedProcessor:
+    def _get_processor(self) -> spv_processor.SS2ImageProcessor:
         if self.config.mode == 'supervised':
             return spv_processor.make_infering_processor(self.config)
         else:

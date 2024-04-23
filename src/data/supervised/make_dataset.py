@@ -7,7 +7,7 @@ from utils import func as uF
 
 
 class SS2SupervisedDataset(Dataset):
-    def __init__(self, config: uC.Config, tiles: list, processor: spv_processor.SS2SupervisedProcessor):
+    def __init__(self, config: uC.Config, tiles: list, processor: spv_processor.SS2ImageProcessor):
         super().__init__()
         self.config = config
         self.tiles = tiles
@@ -17,7 +17,7 @@ class SS2SupervisedDataset(Dataset):
         return len(self.tiles)
 
     def __getitem__(self, idx):
-        image = uF.load_image(self.config, self.tiles[idx])
+        image = uF.load_supervised_image(self.config, self.tiles[idx])
         label = uF.load_label(self.config, self.tiles[idx])
         inputs = self.processor.preprocess(image, label)
 

@@ -1,9 +1,7 @@
 import os.path
 from enum import Enum
-from typing import overload
 
 import numpy as np
-import torch
 import torchvision.transforms.v2 as tv2T
 from PIL import Image
 from torchvision import tv_tensors
@@ -20,23 +18,31 @@ class AugmentationMode(Enum):
     BOTH = 2
 
 
-class SS2SupervisedProcessor:
+class SS2ImageProcessor:
     def __init__(self, config: uC.Config) -> None:
         self.config = config
-        self.hf_processor = self.get_huggingface_processor(config)
+        self.huggingface_processor = self.get_huggingface_processor(config)
+        self.transforms = None
 
-    def preprocess(self, image: np.ndarray, mask: np.ndarray = None, augmentation_mode: AugmentationMode = 0):
+    def preprocess(self,
+                   image: np.ndarray,
+                   mask: np.ndarray = None,
+                   augmentation_mode: AugmentationMode = 0,
+                   apply_huggingface: bool = True
+                   ):
         self.transforms = self._get_transforms(augmentation_mode)
-
         image = self._numpy_to_list(image)
         mask = self._numpy_to_list(mask)
 
-        if mask is not None:
-            image, mask = self._preprocess_image_label(image, mask)
+        if image and mask:
+            inputs, mask = self._preprocess_image_mask(image, mask)
+        elif image and not mask:
+            inputs = self._preprocess_image_only(image)
         else:
-            image = self._preprocess_image(image)
+            raise NotImplementedError
 
-        inputs = self.hf_processor.preprocess(image, segmentation_maps=mask, return_tensors='pt')
+        if apply_huggingface:
+            inputs = self.huggingface_processor.preprocess(inputs, segmentation_maps=mask, return_tensors='pt')
 
         return inputs
 
@@ -47,10 +53,10 @@ class SS2SupervisedProcessor:
 
         return image
 
-    def _preprocess_image(self, images):
+    def _preprocess_image_only(self, images):
         return [self.transforms(tv_tensors.Image(image)) for image in images]
 
-    def _preprocess_image_label(self, images, masks):
+    def _preprocess_image_mask(self, images, masks):
         images_processed = []
         masks_processed = []
 
@@ -77,21 +83,19 @@ class SS2SupervisedProcessor:
                 do_resize=True,
                 image_mean=config.data.mean,
                 image_std=config.data.std,
-                num_labels=config.num_labels,
-                ignore_index=255
+                num_labels=config.num_labels
             )
         elif config.model_name == 'segformer':
             processor = SegformerImageProcessor.from_pretrained(
                 pretrained_model_name_or_path=config.model_id,
                 do_rescale=False,
                 do_normalize=True,
-                reduce_labels=True,
+                do_reduce_labels=False,
                 do_pad=False,
                 do_resize=True,
                 image_mean=config.data.mean,
                 image_std=config.data.std,
-                num_labels=config.num_labels,
-                ignore_index=255
+                num_labels=config.num_labels
             )
         else:
             raise ValueError(f"Unknown model_name: {config.model_name}")
@@ -156,31 +160,12 @@ class SS2SupervisedProcessor:
         return transforms
 
 
-# def make_unsupervised_processor(config: uC.Config):
-#     return SS2SupervisedProcessor(config, ProcessorMode.UNSUPERVISED)
-#
-#
-# def make_supervised_processor(config: uC.Config):
-#     return SS2SupervisedProcessor(config, ProcessorMode.SUPERVISED)
-#
-#
-# def make_eval_processor(config: uC.Config):
-#     return SS2SupervisedProcessor(config, ProcessorMode.EVAL)
-#
-#
-# def make_inference_processor(config: uC.Config):
-#     return SS2SupervisedProcessor(config, ProcessorMode.INFERENCE)
-
-
 def _debug():
     config = uF.load_config('main')
-    wandb_config = uF.load_config('mask2former', 'supervised')
-    config = uC.Config(config, wandb_config)
+    wandb_config = uF.load_config('segformer', 'semi_supervised')
+    config = uC.Config.merge(config, wandb_config)
 
-    unsupervised_preprocessor = make_unsupervised_processor(config)
-    supervised_preprocessor = make_supervised_processor(config)
-    eval_preprocessor = make_eval_processor(config)
-    inf_preprocessor = make_inference_processor(config)
+    processor = SS2ImageProcessor(config)
 
     path_img = os.path.join(config.path.data.raw.train.labeled, '17gw5j.JPG')
     img = np.array(Image.open(path_img).convert('RGB'))
@@ -188,10 +173,7 @@ def _debug():
     path_mask = os.path.join(config.path.data.raw.train.labels, '17gw5j_gt.npy')
     mask = np.load(path_mask)
 
-    u_output = unsupervised_preprocessor.preprocess(img, mask)
-    s_output = supervised_preprocessor.preprocess(img, mask)
-    e_output = eval_preprocessor.preprocess(img, mask)
-    i_output = inf_preprocessor.preprocess(img)
+    output = processor.preprocess(img, mask)
 
 
 if __name__ == '__main__':

@@ -1,54 +1,84 @@
 from torch.utils.data import Dataset
 
-import src.data.processor as spv_processor
+from src.data.processor import SS2ImageProcessor, AugmentationMode
 from src.data import tiling
 from utils import classes as uC
 from utils import func as uF
+
+import random
 
 
 class SS2SemiSupervisedDataset(Dataset):
     def __init__(self,
                  config: uC.Config,
                  labeled_tiles: list,
-                 unlabeled_tiles: list,
-                 processor: spv_processor.SS2SupervisedProcessor
+                 unlabeled_tiles: list
                  ):
         super().__init__()
         self.config = config
         self.labeled_tiles = labeled_tiles
         self.unlabeled_tiles = unlabeled_tiles
-        self.processor = processor
+        self.processor = SS2ImageProcessor(self.config)
 
     def __len__(self) -> int:
         return len(self.labeled_tiles)
 
     def __getitem__(self, idx):
-        unlabeled_inputs = None
+        supervised_input = self.get_supervised_input(idx)
+        unsupervised_inputs = self.get_unsupervised_inputs()
 
-        labeled_image = uF.load_image(self.config, self.labeled_tiles[idx])
+        return supervised_input, unsupervised_inputs
+
+    def get_supervised_input(self, idx):
+        image = uF.load_supervised_image(self.config, self.labeled_tiles[idx])
         label = uF.load_label(self.config, self.labeled_tiles[idx])
-        labeled_inputs = self.processor.preprocess(labeled_image, label)
 
-        unlabeled_idx = None
+        inputs = self.processor.preprocess(
+            image=image,
+            mask=label,
+            augmentation_mode=AugmentationMode.BOTH,
+            apply_huggingface=True
+        )
 
-        return labeled_inputs, unlabeled_inputs
+        return inputs
+
+    def get_unsupervised_inputs(self):
+        idx = random.randint(0, len(self.unlabeled_tiles) - 1)
+        image = uF.load_unsupervised_image(self.config, self.unlabeled_tiles[idx])
+
+        image = self.processor.preprocess(
+            image=image,
+            augmentation_mode=AugmentationMode.SPATIAL,
+            apply_huggingface=False,
+        )
+
+        inputs1 = self.processor.preprocess(
+            image=image,
+            augmentation_mode=AugmentationMode.COLORIMETRIC,
+            apply_huggingface=True,
+        )
+
+        inputs2 = self.processor.preprocess(
+            image=image,
+            augmentation_mode=AugmentationMode.COLORIMETRIC,
+            apply_huggingface=True,
+        )
+
+        return inputs1, inputs2
 
 
 def make_train_dataset(config: uC.Config, labeled_tiles: list, unlabeled_tiles: list) -> SS2SemiSupervisedDataset:
     labeled_train_tiles, _ = uF.train_val_split_tiles(config, labeled_tiles)
     unlabeled_train_tiles, _ = uF.train_val_split_tiles(config, unlabeled_tiles)
 
-    processor = spv_processor.make_training_processor(config)
-
-    return SS2SemiSupervisedDataset(config, labeled_train_tiles, unlabeled_train_tiles, processor)
+    return SS2SemiSupervisedDataset(config, labeled_train_tiles, unlabeled_train_tiles)
 
 
 def make_val_dataset(config: uC.Config, labeled_tiles: list, unlabeled_tiles: list) -> SS2SemiSupervisedDataset:
     _, labeled_val_tiles = uF.train_val_split_tiles(config, labeled_tiles)
     _, unlabeled_val_tiles = uF.train_val_split_tiles(config, unlabeled_tiles)
-    processor = spv_processor.make_eval_processor(config)
 
-    return SS2SemiSupervisedDataset(config, labeled_val_tiles, unlabeled_val_tiles, processor)
+    return SS2SemiSupervisedDataset(config, labeled_val_tiles, unlabeled_val_tiles)
 
 
 def _debug():
@@ -71,7 +101,7 @@ def _debug():
         collate_fn=get_collate_fn_training(config)
     )
 
-    for batch in train_dataloader:
+    for supervised_batch, unsupervised_batch in train_dataloader:
         break
 
     return
