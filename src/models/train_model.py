@@ -7,15 +7,27 @@ import src.models.supervised.mask2former.lightning as spv_m2f
 from utils import func
 from utils.cls import Config
 
+import argparse
+
 
 def main():
+    model_name, mode = parse_args()
     config = func.load_config('main')
-    wandb_config = func.init_wandb('mask2former', 'supervised')
+    wandb_config = func.init_wandb(model_name, mode)
     config = Config.merge(config, wandb_config)
     model = load_model(config)
     trainer = get_trainer(config)
     trainer.fit(model=model)
     wandb.finish()
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model_name', type=str)
+    parser.add_argument('--mode', type=str)
+    args = parser.parse_args()
+
+    return args.model_name, args.mode
 
 
 def load_model(config: Config, map_location=None):
