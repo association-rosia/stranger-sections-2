@@ -1,11 +1,11 @@
-dry: false
+dry: true
 
-mode: 'supervised'
-model_name: 'mask2former'
-model_id: 'facebook/mask2former-swin-large-cityscapes-semantic'
+mode: 'semi_supervised'
+model_name: 'segformer'
+model_id: 'nvidia/segformer-b0-finetuned-ade-512-512'
 checkpoint:
 
-size_tile: 384
+size_tile: 512
 contrast_factor:
 num_labels: 4
 random_state: 42

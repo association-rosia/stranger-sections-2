@@ -68,10 +68,24 @@ def get_run(run_id: str) -> wandb_api.Run:
     return run
 
 
-def load_image(config, tile: dict) -> np.ndarray:
-    path = os.path.join(config.path.data.raw.train.labeled, f'{tile["image"]}.JPG')
+def load_unsupervised_image(config, tile: dict) -> np.ndarray:
+    path = os.path.join(config.path.data.raw.train.unlabeled, f'{tile["image"]}.jpg')
+
     with open(path, mode='br') as f:
-        image = np.array(Image.open(f).convert('RGB'))
+        image = np.array(Image.open(f).convert('RGB')) / 255.0
+        image /= 255
+
+    x0, y0, x1, y1 = tile['bbox']
+    image = image[x0:x1, y0:y1, :]
+
+    return image
+
+
+def load_supervised_image(config, tile: dict) -> np.ndarray:
+    path = os.path.join(config.path.data.raw.train.labeled, f'{tile["image"]}.JPG')
+
+    with open(path, mode='br') as f:
+        image = np.array(Image.open(f).convert('RGB')) / 255.0
 
     x0, y0, x1, y1 = tile['bbox']
     image = image[x0:x1, y0:y1, :]

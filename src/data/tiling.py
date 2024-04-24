@@ -3,17 +3,25 @@ import os
 
 import numpy as np
 
-from utils import classes as uC
-from utils import functions as uF
+from utils import cls, func
 
 
-def get_tiles(size_tile: int = 384):
-    tiles = []
-    config = uF.load_config('main')
-    path_labels = config.path.data.raw.train.labels
-
+def build(labeled: bool = True, size_tile: int = 384):
+    config = func.load_config('main')
     num_h_tiles, overlap_h, num_w_tiles, overlap_w = get_num_tiles(config, size_tile)
     bboxes = get_coords_tile(config, size_tile, num_h_tiles, overlap_h, num_w_tiles, overlap_w)
+
+    if labeled:
+        tiles = get_labeled_tiles(config, bboxes)
+    else:
+        tiles = get_unlabeled_tiles(config, bboxes)
+
+    return tiles
+
+
+def get_labeled_tiles(config: cls.Config, bboxes: list):
+    tiles = []
+    path_labels = config.path.data.raw.train.labels
     npy_files = [file for file in os.listdir(path_labels) if file.endswith('.npy')]
 
     for npy_file in npy_files:
@@ -30,7 +38,21 @@ def get_tiles(size_tile: int = 384):
     return tiles
 
 
-def get_num_tiles(config: uC.Config, size_tile: int):
+def get_unlabeled_tiles(config: cls.Config, bboxes: list):
+    tiles = []
+    path_images = config.path.data.raw.train.unlabeled
+    files = [file for file in os.listdir(path_images) if file.endswith('.jpg')]
+
+    for file in files:
+        image = file.split('.')[0]
+
+        for bbox in bboxes:
+            tiles.append({'image': image, 'bbox': bbox})
+
+    return tiles
+
+
+def get_num_tiles(config: cls.Config, size_tile: int):
     size_h = config.data.size_h
     size_w = config.data.size_w
     num_h_tiles = config.data.size_h / size_tile
@@ -44,7 +66,7 @@ def get_num_tiles(config: uC.Config, size_tile: int):
     return num_h_tiles, overlap_h, num_w_tiles, overlap_w
 
 
-def get_coords_tile(config: uC.Config, size_tile: int, num_h_tiles: int, overlap_h: int, num_w_tiles: int,
+def get_coords_tile(config: cls.Config, size_tile: int, num_h_tiles: int, overlap_h: int, num_w_tiles: int,
                     overlap_w: int):
     size_h = config.data.size_h
     size_w = config.data.size_w
@@ -71,4 +93,4 @@ def get_coords_tile(config: uC.Config, size_tile: int, num_h_tiles: int, overlap
 
 
 if __name__ == "__main__":
-    tiles = get_tiles()
+    tiles = build(labeled=False)

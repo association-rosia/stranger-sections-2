@@ -3,8 +3,8 @@ import wandb.apis.public as wandb_api
 from PIL import Image
 from typing_extensions import Self
 
-import src.data.supervised.collate as spv_collate
-import src.data.supervised.processor as spv_processor
+import src.data.collate as spv_collate
+from src.data.processor import SS2ImageProcessor
 from src.models.train_model import load_model
 from utils import classes as uC
 
@@ -40,9 +40,11 @@ class InferenceModel(torch.nn.Module):
 
         return self
 
-    def _get_processor(self) -> spv_processor.SS2SupervisedProcessor:
+    def _get_processor(self) -> SS2ImageProcessor:
         if self.config.mode == 'supervised':
-            return spv_processor.make_infering_processor(self.config)
+            # return spv_processor.make_infering_processor(self.config)
+            # TODO: rework this part
+            pass
         else:
             raise ValueError(f"mode expected 'supervised' but received {self.config.mode}")
 
@@ -70,6 +72,6 @@ class InferenceModel(torch.nn.Module):
         # inputs = self.collate(inputs)
         inputs.to(device=self.map_location)
         outputs = self.model(inputs)
-        mask_pred = self.processor.hf_processor.post_process_semantic_segmentation(outputs)
+        mask_pred = self.processor.huggingface_processor.post_process_semantic_segmentation(outputs)
 
         return mask_pred
