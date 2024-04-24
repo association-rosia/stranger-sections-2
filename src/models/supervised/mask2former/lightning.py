@@ -11,11 +11,12 @@ from transformers import Mask2FormerForUniversalSegmentation
 import src.data.collate as spv_collate
 import src.data.supervised.make_dataset as spv_dataset
 from src.data.processor import SS2ImageProcessor
-from utils import cls, func
+from utils import func
+from utils.cls import Config
 
 
 class Mask2FormerLightning(pl.LightningModule):
-    def __init__(self, config: cls.Config):
+    def __init__(self, config: Config):
         super(Mask2FormerLightning, self).__init__()
         self.config = config
         self.model = _load_base_model(self.config)
@@ -118,7 +119,7 @@ class Mask2FormerLightning(pl.LightningModule):
         )
 
 
-def _load_base_model(config: cls.Config):
+def _load_base_model(config: Config):
     model = Mask2FormerForUniversalSegmentation.from_pretrained(
         pretrained_model_name_or_path=config.model_id,
         num_labels=config.num_labels,

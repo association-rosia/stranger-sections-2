@@ -1,15 +1,16 @@
+import random
+
 from torch.utils.data import Dataset
 
-from src.data.processor import SS2ImageProcessor, AugmentationMode
 from src.data import tiling
-from utils import cls, func
-
-import random
+from src.data.processor import SS2ImageProcessor, AugmentationMode
+from utils import func
+from utils.cls import Config
 
 
 class SS2SemiSupervisedDataset(Dataset):
     def __init__(self,
-                 config: cls.Config,
+                 config: Config,
                  labeled_tiles: list,
                  unlabeled_tiles: list
                  ):
@@ -66,14 +67,14 @@ class SS2SemiSupervisedDataset(Dataset):
         return inputs1, inputs2
 
 
-def make_train_dataset(config: cls.Config, labeled_tiles: list, unlabeled_tiles: list) -> SS2SemiSupervisedDataset:
+def make_train_dataset(config: Config, labeled_tiles: list, unlabeled_tiles: list) -> SS2SemiSupervisedDataset:
     labeled_train_tiles, _ = func.train_val_split_tiles(config, labeled_tiles)
     unlabeled_train_tiles, _ = func.train_val_split_tiles(config, unlabeled_tiles)
 
     return SS2SemiSupervisedDataset(config, labeled_train_tiles, unlabeled_train_tiles)
 
 
-def make_val_dataset(config: cls.Config, labeled_tiles: list, unlabeled_tiles: list) -> SS2SemiSupervisedDataset:
+def make_val_dataset(config: Config, labeled_tiles: list, unlabeled_tiles: list) -> SS2SemiSupervisedDataset:
     _, labeled_val_tiles = func.train_val_split_tiles(config, labeled_tiles)
     _, unlabeled_val_tiles = func.train_val_split_tiles(config, unlabeled_tiles)
 
@@ -86,7 +87,7 @@ def _debug():
 
     config = func.load_config('main')
     wandb_config = func.load_config('segformer', 'semi_supervised')
-    config = cls.Config.merge(config, wandb_config)
+    config = Config.merge(config, wandb_config)
 
     labeled_tiles = tiling.build(labeled=True, size_tile=wandb_config.size_tile)
     unlabeled_tiles = tiling.build(labeled=False, size_tile=wandb_config.size_tile)

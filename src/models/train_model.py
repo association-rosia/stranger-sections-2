@@ -4,20 +4,21 @@ import pytorch_lightning as pl
 import wandb
 
 import src.models.supervised.mask2former.lightning as spv_m2f
-from utils import cls, func
+from utils import func
+from utils.cls import Config
 
 
 def main():
     config = func.load_config('main')
     wandb_config = func.init_wandb('mask2former', 'supervised')
-    config = cls.Config.merge(config, wandb_config)
+    config = Config.merge(config, wandb_config)
     model = load_model(config)
     trainer = get_trainer(config)
     trainer.fit(model=model)
     wandb.finish()
 
 
-def load_model(config: cls.Config, map_location=None):
+def load_model(config: Config, map_location=None):
     if config.mode == 'supervised':
         if config.model_name == 'mask2former':
             model = spv_m2f.load_model(config, map_location=map_location)
@@ -28,7 +29,7 @@ def load_model(config: cls.Config, map_location=None):
     return model
 
 
-def get_trainer(config: cls.Config):
+def get_trainer(config: Config):
     os.makedirs(config.path.models, exist_ok=True)
 
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
