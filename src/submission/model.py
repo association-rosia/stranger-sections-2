@@ -6,13 +6,13 @@ from typing_extensions import Self
 import src.data.collate as spv_collate
 from src.data.processor import SS2ImageProcessor
 from src.models.train_model import load_model
-from utils import classes as uC
+from utils.cls import Config, RunDemo
 
 
 class InferenceModel(torch.nn.Module):
     def __init__(
             self,
-            config: uC.Config,
+            config: Config,
             base_model: torch.nn.Module,
             map_location: str
     ) -> None:
@@ -29,12 +29,12 @@ class InferenceModel(torch.nn.Module):
     @classmethod
     def load_from_wandb_run(
             cls,
-            config: uC.Config,
-            wandb_run: wandb_api.Run | uC.RunDemo,
+            config: Config,
+            wandb_run: wandb_api.Run | RunDemo,
             map_location: str
     ) -> Self:
 
-        config = uC.Config.merge(config, wandb_run.config)
+        config = Config.merge(config, wandb_run.config)
         model = load_model(config, map_location=map_location)
         self = cls(config, model, map_location=map_location)
 
