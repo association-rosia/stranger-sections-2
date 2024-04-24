@@ -7,8 +7,7 @@ from PIL import Image
 from torchvision import tv_tensors
 from transformers import Mask2FormerImageProcessor, SegformerImageProcessor
 
-from utils import classes as uC
-from utils import func as uF
+from utils import cls, func
 
 
 class AugmentationMode(Enum):
@@ -19,7 +18,7 @@ class AugmentationMode(Enum):
 
 
 class SS2ImageProcessor:
-    def __init__(self, config: uC.Config) -> None:
+    def __init__(self, config: cls.Config) -> None:
         self.config = config
         self.huggingface_processor = self.get_huggingface_processor(config)
         self.transforms = None
@@ -72,7 +71,7 @@ class SS2ImageProcessor:
         return images_processed, masks_processed
 
     @staticmethod
-    def get_huggingface_processor(config: uC.Config):
+    def get_huggingface_processor(config: cls.Config):
         if config.model_name == 'mask2former':
             processor = Mask2FormerImageProcessor.from_pretrained(
                 pretrained_model_name_or_path=config.model_id,
@@ -161,9 +160,9 @@ class SS2ImageProcessor:
 
 
 def _debug():
-    config = uF.load_config('main')
-    wandb_config = uF.load_config('segformer', 'semi_supervised')
-    config = uC.Config.merge(config, wandb_config)
+    config = func.load_config('main')
+    wandb_config = func.load_config('segformer', 'semi_supervised')
+    config = cls.Config.merge(config, wandb_config)
 
     processor = SS2ImageProcessor(config)
 

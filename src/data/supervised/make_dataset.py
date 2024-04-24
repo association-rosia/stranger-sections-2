@@ -2,12 +2,11 @@ from torch.utils.data import Dataset
 
 import src.data.supervised.processor as spv_processor
 from src.data import tiling
-from utils import classes as uC
-from utils import func as uF
+from utils import cls, func
 
 
 class SS2SupervisedDataset(Dataset):
-    def __init__(self, config: uC.Config, tiles: list, processor: spv_processor.SS2ImageProcessor):
+    def __init__(self, config: cls.Config, tiles: list, processor: spv_processor.SS2ImageProcessor):
         super().__init__()
         self.config = config
         self.tiles = tiles
@@ -17,24 +16,24 @@ class SS2SupervisedDataset(Dataset):
         return len(self.tiles)
 
     def __getitem__(self, idx):
-        image = uF.load_supervised_image(self.config, self.tiles[idx])
-        label = uF.load_label(self.config, self.tiles[idx])
+        image = func.load_supervised_image(self.config, self.tiles[idx])
+        label = func.load_label(self.config, self.tiles[idx])
         inputs = self.processor.preprocess(image, label)
 
         return inputs
 
 
-def make_train_dataset(config: uC.Config) -> SS2SupervisedDataset:
-    tiles = tiling.main()
-    train_tiles, _ = uF.train_val_split_tiles(config, tiles)
+def make_train_dataset(config: cls.Config) -> SS2SupervisedDataset:
+    tiles = tiling.build()
+    train_tiles, _ = func.train_val_split_tiles(config, tiles)
     processor = spv_processor.make_training_processor(config)
 
     return SS2SupervisedDataset(config, train_tiles, processor)
 
 
-def make_val_dataset(config: uC.Config) -> SS2SupervisedDataset:
-    tiles = tiling.main()
-    _, val_tiles = uF.train_val_split_tiles(config, tiles)
+def make_val_dataset(config: cls.Config) -> SS2SupervisedDataset:
+    tiles = tiling.build()
+    _, val_tiles = func.train_val_split_tiles(config, tiles)
     processor = spv_processor.make_eval_processor(config)
 
     return SS2SupervisedDataset(config, val_tiles, processor)
@@ -44,9 +43,9 @@ def _debug():
     from torch.utils.data import DataLoader
     from src.data.collate import get_collate_fn_training
 
-    config = uF.load_config('main')
-    wandb_config = uF.load_config('mask2former', 'supervised')
-    config = uC.Config.merge(config, wandb_config)
+    config = func.load_config('main')
+    wandb_config = func.load_config('mask2former', 'supervised')
+    config = cls.Config.merge(config, wandb_config)
 
     train_dataset = make_train_dataset(config)
     val_dataset = make_val_dataset(config)

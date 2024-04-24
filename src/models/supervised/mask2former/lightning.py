@@ -9,17 +9,17 @@ from torch.utils.data import DataLoader
 from transformers import Mask2FormerForUniversalSegmentation
 
 import src.data.collate as spv_collate
-import src.data.supervised.dataset as spv_dataset
-from src.data.supervised.processor import SS2SupervisedProcessor
-from utils import classes as uC
+import src.data.supervised.make_dataset as spv_dataset
+from src.data.processor import SS2ImageProcessor
+from utils import cls, func
 
 
 class Mask2FormerLightning(pl.LightningModule):
-    def __init__(self, config: uC.Config):
+    def __init__(self, config: cls.Config):
         super(Mask2FormerLightning, self).__init__()
         self.config = config
         self.model = _load_base_model(self.config)
-        self.processor = SS2SupervisedProcessor.get_huggingface_processor(config)
+        self.processor = SS2ImageProcessor.get_huggingface_processor(config)
         self.class_labels = {0: 'Background', 1: 'Inertinite', 2: 'Vitrinite', 3: 'Liptinite'}
 
     def forward(self, inputs):
@@ -118,7 +118,7 @@ class Mask2FormerLightning(pl.LightningModule):
         )
 
 
-def _load_base_model(config: uC.Config):
+def _load_base_model(config: cls.Config):
     model = Mask2FormerForUniversalSegmentation.from_pretrained(
         pretrained_model_name_or_path=config.model_id,
         num_labels=config.num_labels,
@@ -142,8 +142,8 @@ def load_model(config, map_location=None):
 
 
 def _debug():
-    config = utils.get_config()
-    wandb_config = utils.load_config('mask2former', 'segmentation')
+    config = func.load_config('main')
+    wandb_config = func.load_config('mask2former', 'segmentation')
     config.update(wandb_config)
     model = load_model(config)
 

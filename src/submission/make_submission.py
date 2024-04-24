@@ -5,12 +5,12 @@ import numpy as np
 from PIL import Image
 
 from src.submission.model import InferenceModel
-from utils import func as uF
+from utils import func
 
 
 def main():
-    config = uF.load_config('main')
-    wandb_run = uF.get_run('cgtv3aow')
+    config = func.load_config('main')
+    wandb_run = func.get_run('cgtv3aow')
     model = InferenceModel.load_from_wandb_run(config, wandb_run, 'cuda:0')
     pathname = os.path.join(config.path.data.raw.test.unlabeled, '*.JPG')
     submission_folder = os.path.join(config.path.submissions, f'{wandb_run.name}-{wandb_run.id}')
