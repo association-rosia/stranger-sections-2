@@ -71,11 +71,11 @@ class Mask2FormerLightning(pl.LightningModule):
     def get_original_mask(masks):
         output_mask = torch.zeros_like(masks[0])
 
-        # Parcourez les tensors masques binaires empilés
+        # Iterate through the stacked binary mask tensors
         for index, mask in enumerate(masks):
-            # Trouvez les indices où le masque est True
+            # Find the indices where the mask is True
             true_indices = torch.nonzero(mask, as_tuple=False)
-            # Mettez à jour le tensor de sortie avec les indices correspondants
+            # Update the output tensor with the corresponding indices
             output_mask[true_indices[:, 0], true_indices[:, 1]] = index + 1
 
         return output_mask

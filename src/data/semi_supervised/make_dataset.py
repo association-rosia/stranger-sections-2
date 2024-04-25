@@ -1,5 +1,6 @@
 import random
 
+import torch
 from torch.utils.data import Dataset
 
 from src.data import tiling
@@ -29,6 +30,12 @@ class SS2SemiSupervisedDataset(Dataset):
 
         return supervised_input, unsupervised_inputs
 
+    @staticmethod
+    def adjust_shape(inputs):
+        inputs = {k: v.squeeze() if isinstance(v, torch.Tensor) else v[0] for k, v in inputs.items()}
+
+        return inputs
+
     def get_supervised_input(self, idx):
         image = func.load_supervised_image(self.config, self.labeled_tiles[idx])
         label = func.load_label(self.config, self.labeled_tiles[idx])
@@ -39,6 +46,7 @@ class SS2SemiSupervisedDataset(Dataset):
             augmentation_mode=AugmentationMode.BOTH,
             apply_huggingface=True
         )
+        inputs = self.adjust_shape(inputs)
 
         return inputs
 
@@ -52,19 +60,21 @@ class SS2SemiSupervisedDataset(Dataset):
             apply_huggingface=False,
         )
 
-        inputs1 = self.processor.preprocess(
+        inputs_1 = self.processor.preprocess(
             image=image,
             augmentation_mode=AugmentationMode.COLORIMETRIC,
             apply_huggingface=True,
         )
+        inputs_1 = self.adjust_shape(inputs_1)
 
-        inputs2 = self.processor.preprocess(
+        inputs_2 = self.processor.preprocess(
             image=image,
             augmentation_mode=AugmentationMode.COLORIMETRIC,
             apply_huggingface=True,
         )
+        inputs_2 = self.adjust_shape(inputs_2)
 
-        return inputs1, inputs2
+        return inputs_1, inputs_2
 
 
 def make_train_dataset(config: Config, labeled_tiles: list, unlabeled_tiles: list) -> SS2SemiSupervisedDataset:

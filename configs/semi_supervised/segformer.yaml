@@ -10,7 +10,7 @@ contrast_factor:
 num_labels: 4
 random_state: 42
 
-devices: [ 0, 1, 2, 3 ]
+devices: [ 0 ] # [ 0, 1, 2, 3 ]
 max_epochs: 100
 batch_size: 2
 num_workers: 23

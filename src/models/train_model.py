@@ -1,13 +1,14 @@
+import argparse
 import os
 
 import pytorch_lightning as pl
 import wandb
 
 import src.models.supervised.mask2former.lightning as spv_m2f
+import src.models.semi_supervised.segformer.lightning as ssp_sfm
+
 from utils import func
 from utils.cls import Config
-
-import argparse
 
 
 def main():
@@ -34,6 +35,10 @@ def load_model(config: Config, map_location=None):
     if config.mode == 'supervised':
         if config.model_name == 'mask2former':
             model = spv_m2f.load_model(config, map_location=map_location)
+
+    elif config.mode == 'semi_supervised':
+        if config.model_name == 'segformer':
+            model = ssp_sfm.load_model(config, map_location=map_location)
 
     if 'model' not in locals():
         raise ValueError(f"mode={config.mode} and model_name={config.model_name} doesn't exist.")

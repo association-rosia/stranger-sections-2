@@ -1,4 +1,4 @@
-import src.data.supervised.processor as spv_processor
+import src.data.processor as spv_processor
 from torch.utils.data import Dataset
 
 from src.data import tiling
