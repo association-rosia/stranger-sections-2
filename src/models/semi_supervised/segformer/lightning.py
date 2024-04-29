@@ -27,7 +27,8 @@ class SegFormerLightning(pl.LightningModule):
         self.sam = load_sam_model(self.config)
 
         # TODO: create our own loss function CrossEntropyLoss works with a logit and a mask (not 2 masks)
-        self.unsupervised_loss_fct = nn.CrossEntropyLoss()
+        self.consistency_loss_fct = nn.CrossEntropyLoss()
+        self.sam_loss_fct = nn.CrossEntropyLoss()
         self.delta_c = 1
         self.delta_s = 1
 
@@ -37,12 +38,12 @@ class SegFormerLightning(pl.LightningModule):
         self.class_labels = {0: 'Background', 1: 'Inertinite', 2: 'Vitrinite', 3: 'Liptinite'}
 
     def forward(self, batch):
-        supervised_input, unsupervised_inputs = batch
-        supervised_loss = self.supervised_forward(supervised_input)
-        unsupervised_loss, unsupervised_mask_1 = self.unsupervised_forward(unsupervised_inputs)
-        sam_loss = self.sam_forward(unsupervised_inputs, unsupervised_mask_1)
+        segmentation_input, consistency_inputs = batch
+        segmentation_loss = self.segmentation_forward(segmentation_input)
+        consistency_loss, consistency_logits_1 = self.consistency_forward(consistency_inputs)
+        sam_loss = self.sam_forward(consistency_inputs, consistency_logits_1)
 
-        loss = supervised_loss + self.delta_c * unsupervised_loss + self.delta_s * sam_loss
+        loss = segmentation_loss + self.delta_c * consistency_loss + self.delta_s * sam_loss
 
         return loss
 
@@ -59,7 +60,7 @@ class SegFormerLightning(pl.LightningModule):
 
         return loss
 
-    def supervised_forward(self, inputs):
+    def segmentation_forward(self, inputs):
         outputs = self.student(**inputs)
 
         # TODO: log the predicted mask
@@ -67,29 +68,37 @@ class SegFormerLightning(pl.LightningModule):
 
         return outputs.loss  # CrossEntropyLoss
 
-    def unsupervised_forward(self, inputs):
+    def consistency_forward(self, inputs):
         inputs_1, inputs_2, = inputs
 
         outputs_1 = self.student(**inputs_1)
-        mask_1 = self.outputs_to_mask(inputs_1, outputs_1)
+        logits_1 = self.reshape_outputs(inputs_1, outputs_1)
 
         outputs_2 = self.teacher(**inputs_2)
-        mask_2 = self.outputs_to_mask(inputs_2, outputs_2)
+        logits_2 = self.reshape_outputs(inputs_2, outputs_2)
+        mask_2 = self.logits_to_mask(logits_2)
 
-        loss = self.unsupervised_loss_fct(mask_1, mask_2)
+        loss = self.consistency_loss_fct(logits_1, mask_2)
 
-        loss = None
+        return loss, logits_1
 
-        return loss, mask_1
+    def sam_forward(self, inputs, consistency_logits):
+        consistency_mask = self.logits_to_mask(consistency_logits)
 
-    def sam_forward(self, inputs, prompt):
         inputs_1, inputs_2, = inputs
 
         loss = None
 
         return loss
 
-    def outputs_to_mask(self, inputs, outputs):
+    @staticmethod
+    def logits_to_mask(logits):
+        mask = logits.argmax(dim=1)
+
+        return mask
+
+    @staticmethod
+    def reshape_outputs(inputs, outputs):
         logits = outputs.logits
 
         mask = nn.functional.interpolate(
@@ -98,8 +107,6 @@ class SegFormerLightning(pl.LightningModule):
             mode='bilinear',
             align_corners=False
         )
-
-        mask = mask.argmax(dim=1)[0]
 
         return mask
 
