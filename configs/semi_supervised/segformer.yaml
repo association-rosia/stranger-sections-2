@@ -3,6 +3,7 @@ dry: true
 mode: 'semi_supervised'
 model_name: 'segformer'
 model_id: 'nvidia/segformer-b0-finetuned-ade-512-512'
+sam_id: 'facebook/sam-vit-base'
 checkpoint:
 
 size_tile: 512

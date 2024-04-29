@@ -3,10 +3,11 @@ import os
 import pytorch_lightning as pl
 import torch
 import wandb
+import torch.nn.functional as F
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
-from transformers import SegformerForSemanticSegmentation
+from transformers import SegformerForSemanticSegmentation, SamModel
 from torch import nn
 
 import src.data.semi_supervised.make_dataset as ssp_dataset
@@ -69,30 +70,53 @@ class SegFormerLightning(pl.LightningModule):
         return outputs.loss  # CrossEntropyLoss
 
     def consistency_forward(self, inputs):
-        inputs_1, inputs_2, = inputs
+        inputs_1, inputs_2 = inputs
 
         outputs_1 = self.student(**inputs_1)
         logits_1 = self.reshape_outputs(inputs_1, outputs_1)
 
         outputs_2 = self.teacher(**inputs_2)
         logits_2 = self.reshape_outputs(inputs_2, outputs_2)
-        mask_2 = self.logits_to_mask(logits_2)
+        mask_2 = self.logits_to_masks(logits_2)
 
         loss = self.consistency_loss_fct(logits_1, mask_2)
 
         return loss, logits_1
 
     def sam_forward(self, inputs, consistency_logits):
-        consistency_mask = self.logits_to_mask(consistency_logits)
+        inputs, _ = inputs
+        consistency_masks = self.logits_to_masks(consistency_logits)
 
-        inputs_1, inputs_2, = inputs
+        for i in range(self.config.batch_size):
+            consistency_mask = consistency_masks[i]
+            input_masks = self.get_sam_input_masks(consistency_mask)
+            # pixel_values = inputs['pixel_values'][i].repeat(len(input_masks), 1, 1, 1)
+
+            pixel_values = torch.repeat_interleave(inputs['pixel_values'][i], len(input_masks), dim=0)
+
+            # torch.unsqueeze(inputs['pixel_values'][i], dim=0).repeat(len(input_masks), 1, 1, 1)
+
+            outputs = self.sam(pixel_values=pixel_values, input_masks=input_masks)
 
         loss = None
 
         return loss
 
     @staticmethod
-    def logits_to_mask(logits):
+    def get_sam_input_masks(consistency_mask):
+        unique_values = torch.unique(consistency_mask).tolist()
+        num_classes = len(unique_values)
+        input_masks = F.one_hot(consistency_mask, num_classes=num_classes).permute(2, 0, 1)
+
+        if 0 in unique_values and num_classes > 1:
+            input_masks = input_masks[1:]
+        elif 0 in unique_values:
+            input_masks = None
+
+        return input_masks
+
+    @staticmethod
+    def logits_to_masks(logits):
         mask = logits.argmax(dim=1)
 
         return mask
@@ -207,7 +231,9 @@ def load_teacher_model(config: Config):
 
 
 def load_sam_model(config: Config):
-    return
+    model = SamModel.from_pretrained(config.sam_id)
+
+    return model
 
 
 def load_model(config: Config, map_location=None):
