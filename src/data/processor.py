@@ -90,7 +90,7 @@ class SS2ImageProcessor:
                 pretrained_model_name_or_path=config.model_id,
                 do_rescale=False,
                 do_normalize=True,
-                do_reduce_labels=False,
+                do_reduce_labels=True,
                 do_pad=False,
                 do_resize=True,
                 image_mean=config.data.mean,

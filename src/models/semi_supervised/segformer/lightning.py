@@ -28,8 +28,8 @@ class SegFormerLightning(pl.LightningModule):
         self.sam = load_sam_model(self.config)
 
         # TODO: create our own loss function CrossEntropyLoss works with a logit and a mask (not 2 masks)
-        self.consistency_loss_fct = nn.CrossEntropyLoss()
-        self.sam_loss_fct = nn.CrossEntropyLoss()
+        self.consistency_loss_fct = nn.CrossEntropyLoss(ignore_index=255)
+        self.sam_loss_fct = nn.CrossEntropyLoss(ignore_index=255)
         self.delta_c = 1
         self.delta_s = 1
 
@@ -79,6 +79,7 @@ class SegFormerLightning(pl.LightningModule):
         logits_2 = self.reshape_outputs(inputs_2, outputs_2)
         mask_2 = self.logits_to_masks(logits_2)
 
+        # replace 0 by 255 ?
         loss = self.consistency_loss_fct(logits_1, mask_2)
 
         return loss, logits_1
@@ -89,18 +90,36 @@ class SegFormerLightning(pl.LightningModule):
 
         for i in range(self.config.batch_size):
             consistency_mask = consistency_masks[i]
+            pixel_values_i = inputs['pixel_values'][i]
+
             input_masks = self.get_sam_input_masks(consistency_mask)
-            # pixel_values = inputs['pixel_values'][i].repeat(len(input_masks), 1, 1, 1)
+            num_masks = len(input_masks)
 
-            pixel_values = torch.repeat_interleave(inputs['pixel_values'][i], len(input_masks), dim=0)
-
-            # torch.unsqueeze(inputs['pixel_values'][i], dim=0).repeat(len(input_masks), 1, 1, 1)
-
+            pixel_values = F.interpolate(
+                torch.stack([pixel_values_i for _ in range(num_masks)]),
+                size=(1024, 1024),
+                mode='bilinear',
+                align_corners=False
+            )
             outputs = self.sam(pixel_values=pixel_values, input_masks=input_masks)
+            print()
 
         loss = None
 
         return loss
+
+    @staticmethod
+    def reshape_input_masks(input_masks):
+        input_masks.unsqueeze(dim=1)
+
+        input_masks = F.interpolate(
+            input_masks,
+            size=(1024, 1024),
+            mode='bilinear',
+            align_corners=False
+        ).squeeze(dim=1)
+
+        return input_masks
 
     @staticmethod
     def get_sam_input_masks(consistency_mask):
@@ -110,8 +129,11 @@ class SegFormerLightning(pl.LightningModule):
 
         if 0 in unique_values and num_classes > 1:
             input_masks = input_masks[1:]
+            input_masks = self.reshape_input_masks(input_masks)
         elif 0 in unique_values:
             input_masks = None
+        else:
+            input_masks = self.reshape_input_masks(input_masks)
 
         return input_masks
 
@@ -232,6 +254,9 @@ def load_teacher_model(config: Config):
 
 def load_sam_model(config: Config):
     model = SamModel.from_pretrained(config.sam_id)
+
+    # for param in model.parameters():
+    #     param.requires_grad = False
 
     return model
 
