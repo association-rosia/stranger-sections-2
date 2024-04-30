@@ -4,9 +4,8 @@ import os
 import pytorch_lightning as pl
 import wandb
 
-import src.models.supervised.mask2former.lightning as spv_m2f
 import src.models.semi_supervised.segformer.lightning as ssp_sfm
-
+import src.models.supervised.mask2former.lightning as spv_m2f
 from utils import func
 from utils.cls import Config
 

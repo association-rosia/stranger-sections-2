@@ -2,20 +2,24 @@ import os
 
 import pytorch_lightning as pl
 import torch
-import wandb
 import torch.nn.functional as F
+import wandb
+from torch import nn
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 from transformers import SegformerForSemanticSegmentation, SamModel
-from torch import nn
 
 import src.data.semi_supervised.make_dataset as ssp_dataset
+from src.data import tiling
 from src.data.processor import SS2ImageProcessor
 from utils import func
 from utils.cls import Config
 
-from src.data import tiling
+torch.set_float32_matmul_precision('medium')
+
+import os
+os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
 
 class SegFormerLightning(pl.LightningModule):
@@ -93,47 +97,44 @@ class SegFormerLightning(pl.LightningModule):
             pixel_values_i = inputs['pixel_values'][i]
 
             input_masks = self.get_sam_input_masks(consistency_mask)
-            num_masks = len(input_masks)
+            num_masks = len(input_masks) if input_masks is not None else 1
 
-            pixel_values = F.interpolate(
-                torch.stack([pixel_values_i for _ in range(num_masks)]),
-                size=(1024, 1024),
-                mode='bilinear',
-                align_corners=False
-            )
-            outputs = self.sam(pixel_values=pixel_values, input_masks=input_masks)
-            print()
+            pixel_values = self.reshape_inputs(torch.stack([pixel_values_i for _ in range(num_masks)]), squeeze=False)
+            outputs = self.sam(pixel_values=pixel_values, input_masks=input_masks, multimask_output=False)
+            print(outputs)
 
         loss = None
 
         return loss
 
     @staticmethod
-    def reshape_input_masks(input_masks):
-        input_masks.unsqueeze(dim=1)
+    def reshape_inputs(input_masks, squeeze=True):
+        if squeeze:
+            input_masks = input_masks.unsqueeze(dim=1)
 
+        input_masks = input_masks.float()
         input_masks = F.interpolate(
             input_masks,
             size=(1024, 1024),
             mode='bilinear',
             align_corners=False
-        ).squeeze(dim=1)
+        ).squeeze(dim=1).half()
 
         return input_masks
 
-    @staticmethod
-    def get_sam_input_masks(consistency_mask):
+    def get_sam_input_masks(self, consistency_mask):
         unique_values = torch.unique(consistency_mask).tolist()
-        num_classes = len(unique_values)
-        input_masks = F.one_hot(consistency_mask, num_classes=num_classes).permute(2, 0, 1)
+        input_masks = F.one_hot(consistency_mask.to(torch.int64))
+        input_masks = torch.permute(input_masks, (2, 0, 1))
+        input_masks = input_masks[unique_values]
 
-        if 0 in unique_values and num_classes > 1:
+        if 0 in unique_values and len(unique_values) > 1:
             input_masks = input_masks[1:]
-            input_masks = self.reshape_input_masks(input_masks)
+            input_masks = self.reshape_inputs(input_masks)
         elif 0 in unique_values:
             input_masks = None
         else:
-            input_masks = self.reshape_input_masks(input_masks)
+            input_masks = self.reshape_inputs(input_masks)
 
         return input_masks
 
