@@ -8,7 +8,7 @@ from torch import nn
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
-from transformers import SegformerForSemanticSegmentation, SamModel
+from transformers import SegformerForSemanticSegmentation, SamModel, SamImageProcessor
 
 import src.data.semi_supervised.make_dataset as ssp_dataset
 from src.data import tiling
@@ -18,9 +18,6 @@ from utils.cls import Config
 
 torch.set_float32_matmul_precision('medium')
 
-import os
-os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
-
 
 class SegFormerLightning(pl.LightningModule):
     def __init__(self, config: Config):
@@ -29,7 +26,7 @@ class SegFormerLightning(pl.LightningModule):
 
         self.student = load_student_model(self.config)
         self.teacher = load_teacher_model(self.config)
-        self.sam = load_sam_model(self.config)
+        self.sam, self.sam_processor = load_sam(self.config)
 
         # TODO: create our own loss function CrossEntropyLoss works with a logit and a mask (not 2 masks)
         self.consistency_loss_fct = nn.CrossEntropyLoss(ignore_index=255)
@@ -88,55 +85,119 @@ class SegFormerLightning(pl.LightningModule):
 
         return loss, logits_1
 
+    @torch.no_grad()
     def sam_forward(self, inputs, consistency_logits):
         inputs, _ = inputs
         consistency_masks = self.logits_to_masks(consistency_logits)
+        flatten_inputs, values, idcs = self.create_flatten_inputs(consistency_masks, inputs)
+        flatten_outputs = self.sam(**flatten_inputs)
+        sam_masks = self.post_process_flatten_outputs(flatten_inputs, flatten_outputs, values, idcs)
 
-        for i in range(self.config.batch_size):
-            consistency_mask = consistency_masks[i]
-            pixel_values_i = inputs['pixel_values'][i]
-
-            input_masks = self.get_sam_input_masks(consistency_mask)
-            num_masks = len(input_masks) if input_masks is not None else 1
-
-            pixel_values = self.reshape_inputs(torch.stack([pixel_values_i for _ in range(num_masks)]), squeeze=False)
-            outputs = self.sam(pixel_values=pixel_values, input_masks=input_masks, multimask_output=False)
-            print(outputs)
-
-        loss = None
+        # replace 0 by 255 ?
+        loss = self.sam_loss_fct(consistency_logits, sam_masks.long())
 
         return loss
 
-    @staticmethod
-    def reshape_inputs(input_masks, squeeze=True):
-        if squeeze:
-            input_masks = input_masks.unsqueeze(dim=1)
+    def post_process_flatten_outputs(self, flatten_inputs, flatten_outputs, values, idcs):
+        sam_masks = []
+        unique_idcs = list(set(idcs))
 
-        input_masks = input_masks.float()
-        input_masks = F.interpolate(
-            input_masks,
-            size=(1024, 1024),
+        masks = self.sam_processor.post_process_masks(
+            masks=flatten_outputs.pred_masks,
+            original_sizes=flatten_inputs['original_sizes'],
+            reshaped_input_sizes=flatten_inputs['reshaped_input_sizes'],
+            binarize=False
+        )
+
+        masks = torch.cat(masks)
+        masks = masks.squeeze(dim=1)
+
+        for idx in unique_idcs:
+            sam_mask = []
+            post_processed_masks_idx = masks[torch.Tensor(idcs) == idx]
+            mask_values = [values[i] for i in idcs if i == idx]
+
+            replaced_class = 0
+            for i in range(4):
+                if i in mask_values:
+                    sam_mask.append(post_processed_masks_idx[replaced_class])
+                    replaced_class += 1
+                elif i == 0:
+                    sam_mask.append(1e-8 * torch.ones(masks.shape[-2:], device=masks.device))
+                else:
+                    sam_mask.append(torch.zeros(masks.shape[-2:], device=masks.device))
+
+            sam_mask = torch.stack(sam_mask)
+            sam_mask = sam_mask.argmax(dim=0)
+            sam_masks.append(sam_mask)
+
+        sam_masks = torch.stack(sam_masks)
+        sam_masks = self.reshape_tensor(sam_masks, size=(512, 512), is_3d=True)
+
+        return sam_masks
+
+    def create_flatten_inputs(self, consistency_masks, inputs):
+        input_masks = []
+        pixel_values = []
+        values = []
+        idcs = []
+        device = consistency_masks.device
+
+        for i in range(self.config.batch_size):
+            # create prompt mask
+            consistency_mask = consistency_masks[i]
+            input_masks_i, values_i = self.get_sam_input_masks(consistency_mask)
+            input_masks.append(input_masks_i)
+            values += values_i
+
+            # create input image
+            num_masks = len(input_masks_i) if input_masks_i is not None else 1
+            pixel_values_i = torch.stack([inputs['pixel_values'][i] for _ in range(num_masks)])
+            pixel_values_i = self.reshape_tensor(pixel_values_i)
+            pixel_values.append(pixel_values_i)
+            idcs += [i for _ in range(num_masks)]
+
+        input_masks = torch.cat(input_masks).unsqueeze(dim=1)
+        pixel_values = torch.cat(pixel_values)
+        flatten_inputs = self.sam_processor(images=pixel_values, return_tensors='pt')
+        flatten_inputs['input_masks'] = input_masks
+        flatten_inputs['multimask_output'] = False
+        flatten_inputs = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in flatten_inputs.items()}
+
+        return flatten_inputs, values, idcs
+
+    @staticmethod
+    def reshape_tensor(tensor, size=(1024, 1024), is_3d=False):
+        if is_3d:
+            tensor = tensor.unsqueeze(dim=1)
+
+        tensor = tensor.float()
+        tensor = F.interpolate(
+            tensor,
+            size=size,
             mode='bilinear',
             align_corners=False
         ).squeeze(dim=1).half()
 
-        return input_masks
+        return tensor
 
     def get_sam_input_masks(self, consistency_mask):
-        unique_values = torch.unique(consistency_mask).tolist()
+        values = torch.unique(consistency_mask).tolist()
         input_masks = F.one_hot(consistency_mask.to(torch.int64))
         input_masks = torch.permute(input_masks, (2, 0, 1))
-        input_masks = input_masks[unique_values]
+        input_masks = input_masks[values]
 
-        if 0 in unique_values and len(unique_values) > 1:
+        if len(values) > 1 and 0 in values:
             input_masks = input_masks[1:]
-            input_masks = self.reshape_inputs(input_masks)
-        elif 0 in unique_values:
-            input_masks = None
+            input_masks = self.reshape_tensor(input_masks, size=(256, 256), is_3d=True)
+            values.remove(0)
+        elif len(values) == 1 and 0 in values:
+            input_masks = torch.zeros((1, 256, 256))
+            values = [-1]
         else:
-            input_masks = self.reshape_inputs(input_masks)
+            input_masks = self.reshape_tensor(input_masks, size=(256, 256), is_3d=True)
 
-        return input_masks
+        return input_masks, values
 
     @staticmethod
     def logits_to_masks(logits):
@@ -238,7 +299,8 @@ def load_student_model(config: Config):
     model = SegformerForSemanticSegmentation.from_pretrained(
         pretrained_model_name_or_path=config.model_id,
         num_labels=config.num_labels,
-        ignore_mismatched_sizes=True
+        ignore_mismatched_sizes=True,
+        torch_dtype=torch.float16
     )
 
     return model
@@ -253,13 +315,21 @@ def load_teacher_model(config: Config):
     return model
 
 
-def load_sam_model(config: Config):
-    model = SamModel.from_pretrained(config.sam_id)
+def load_sam(config: Config):
+    model = SamModel.from_pretrained(config.sam_id, torch_dtype=torch.float16)
 
-    # for param in model.parameters():
-    #     param.requires_grad = False
+    processor = SamImageProcessor.from_pretrained(
+        config.sam_id,
+        do_resize=False,
+        do_rescale=False,
+        do_normalize=False,
+        do_convert_rgb=False
+    )
 
-    return model
+    for param in model.parameters():
+        param.requires_grad = False
+
+    return model, processor
 
 
 def load_model(config: Config, map_location=None):
