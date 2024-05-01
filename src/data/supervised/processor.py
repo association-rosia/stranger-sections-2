@@ -9,22 +9,21 @@ from PIL import Image
 from torchvision import tv_tensors
 from transformers import Mask2FormerImageProcessor, SegformerImageProcessor
 
-from utils import classes as uC
-from utils import functions as uF
+from src.utils import func
+from src.utils.cls import Config
 
-
-class ProcessorMode(Enum):
-    TRAINING = 0
-    EVAL = 1
-    INFERENCE = 2
-
+class AugmentationMode(Enum):
+    NONE = -1
+    SPATIAL = 0
+    COLORIMETRIC = 1
+    BOTH = 2
 
 class SS2SupervisedProcessor:
-    def __init__(self, config: uC.Config, processor_mode: ProcessorMode) -> None:
+    def __init__(self, config: Config, augmentation_mode: AugmentationMode = AugmentationMode.NONE) -> None:
         self.config = config
-        self.processor_mode = processor_mode
-        self.hf_processor = self.get_huggingface_processor(config)
-        self.transforms = self._get_transforms()
+        self.augmentation_mode = augmentation_mode
+        self.huggingface_processor = self.get_huggingface_processor(config)
+        self.transforms = self._get_transforms(self.augmentation_mode)
 
     @overload
     def preprocess(self, images: np.ndarray, masks: np.ndarray = None) -> torch.Tensor:
@@ -36,32 +35,45 @@ class SS2SupervisedProcessor:
 
     def preprocess(self,
                    images: np.ndarray | list[np.ndarray],
-                   masks: np.ndarray | list[np.ndarray] = None) -> torch.Tensor:
+                   masks: np.ndarray | list[np.ndarray] = None,
+                   augmentation_mode: AugmentationMode = None,
+                   apply_huggingface: bool = True
+                   ):
+        
+        if augmentation_mode is None:
+            transforms = self.transforms
+        else:
+            transforms = self._get_transforms(augmentation_mode)
 
-        if not isinstance(images, list):
-            images = [images]
+        images = self._numpy_to_list(images)
+        masks = self._numpy_to_list(masks)
 
-        if self.processor_mode in [ProcessorMode.TRAINING, ProcessorMode.EVAL]:
-            if not isinstance(masks, list):
-                masks = [masks]
+        if masks is not None:
+            images, masks = self._preprocess_images_masks(images, masks, transforms)
+        else:
+            images = self._preprocess_images_only(images, transforms)
 
-            images, masks = self._preprocess_image_label(images, masks)
+        if apply_huggingface:
+            inputs = self.huggingface_processor.preprocess(images, segmentation_maps=masks, return_tensors='pt')
 
-        elif self.processor_mode == ProcessorMode.INFERENCE:
-            images = self._preprocess_image(images)
-            masks = None
+        return inputs
 
-        return self.hf_processor.preprocess(images, segmentation_maps=masks, return_tensors='pt')
+    @staticmethod
+    def _numpy_to_list(array):
+        if not isinstance(array, list) and array is not None:
+            array = [array]
 
-    def _preprocess_image(self, images):
-        return [self.transforms(tv_tensors.Image(image)) for image in images]
+        return array
+    
+    def _preprocess_images_only(self, images, transforms):
+        return [transforms(tv_tensors.Image(image)) for image in images]
 
-    def _preprocess_image_label(self, images, masks):
+    def _preprocess_images_masks(self, images, masks, transforms):
         images_processed = []
         masks_processed = []
 
         for image, mask in zip(images, masks):
-            image_processed, mask_processed = self.transforms(
+            image_processed, mask_processed = transforms(
                 tv_tensors.Image(image),
                 tv_tensors.Mask(mask)
             )
@@ -72,7 +84,7 @@ class SS2SupervisedProcessor:
         return images_processed, masks_processed
 
     @staticmethod
-    def get_huggingface_processor(config: uC.Config):
+    def get_huggingface_processor(config: Config):
         if config.model_name == 'mask2former':
             processor = Mask2FormerImageProcessor.from_pretrained(
                 pretrained_model_name_or_path=config.model_id,
@@ -97,70 +109,86 @@ class SS2SupervisedProcessor:
                 image_std=config.data.std,
                 num_labels=config.num_labels,
             )
+        else:
+            raise ValueError(f"Unknown model_name: {config.model_name}")
 
         return processor
-
+    
+    def set_augmentation_mode(self, augmentation_mode: AugmentationMode):
+        self.augmentation_mode = augmentation_mode
+        self.transforms = self._get_transforms()
+    
     @staticmethod
-    def _get_training_transforms():
-        transforms = tv2T.Compose([
-            tv2T.ToDtype(dtype=torch.float32, scale=True),
-            # tv2T.Lambda(
-            #     partial(tv2F.adjust_contrast, contrast_factor=self.config.contrast_factor']),
-            #     tv_tensors.Image
-            # ),
-            # tv2T.Lambda(
-            #     partial(tv2F.adjust_contrast, contrast_factor=self.config.contrast_factor']),
-            #     tv_tensors.Image
-            # ),
-            # tv2T.Resize(
-            #     self.config.size'],
-            #     interpolation=tv2F.InterpolationMode.BICUBIC
-            # ),
-            # tv2T.Normalize(mean=self.config.data']['mean'], std=self.config.data']['std'])
-        ])
+    def _get_none_transforms():
+        transforms = [
+            tv2T.Lambda(lambda x: x)
+        ]
 
         return transforms
 
     @staticmethod
-    def _get_eval_transforms():
-        transforms = tv2T.Compose([
-            tv2T.ToDtype(dtype=torch.float32, scale=True),
+    def _get_spatial_transforms():
+        transforms = [
+            tv2T.Lambda(lambda x: x)
             # tv2T.Lambda(
             #     partial(tv2F.adjust_contrast, contrast_factor=self.config.contrast_factor']),
             #     tv_tensors.Image
             # ),
-            # tv2T.Resize(
-            #     self.config.size'],
-            #     interpolation=tv2F.InterpolationMode.BICUBIC
-            # ),
-            # tv2T.Normalize(mean=self.config.data']['mean'], std=self.config.data']['std'])
-        ])
+        ]
 
         return transforms
 
-    def _get_transforms(self):
-        if self.processor_mode == ProcessorMode.TRAINING:
-            return self._get_training_transforms()
-        elif self.processor_mode in [ProcessorMode.EVAL, ProcessorMode.INFERENCE]:
-            return self._get_eval_transforms()
+    @staticmethod
+    def _get_colorimetric_transforms():
+        transforms = [
+            tv2T.Lambda(lambda x: x)
+            # tv2T.Lambda(
+            #     partial(tv2F.adjust_contrast, contrast_factor=self.config.contrast_factor']),
+            #     tv_tensors.Image
+            # ),
+        ]
+
+        return transforms
+
+    def _get_both_transforms(self):
+        spatial_transforms = self._get_spatial_transforms()
+        colorimetric_transforms = self._get_colorimetric_transforms()
+        
+        return [*spatial_transforms, *colorimetric_transforms]
+
+    def _get_transforms(self, augmentation_mode: AugmentationMode) -> tv2T.Compose:
+        transforms = [tv2T.ToDtype(dtype=torch.float32, scale=True)]
+        
+        if augmentation_mode == AugmentationMode.NONE:
+            transforms.extend(self._get_none_transforms())
+        elif augmentation_mode == AugmentationMode.SPATIAL:
+            transforms.extend(self._get_spatial_transforms())
+        elif augmentation_mode == AugmentationMode.COLORIMETRIC:
+            transforms.extend(self._get_colorimetric_transforms())
+        elif augmentation_mode == AugmentationMode.BOTH:
+            transforms.extend(self._get_both_transforms())
+        else:
+            raise ValueError(f"Unknown augmentation_mode: {self.augmentation_mode}")
+
+        return tv2T.Compose(transforms)
 
 
-def make_training_processor(config: uC.Config):
-    return SS2SupervisedProcessor(config, ProcessorMode.TRAINING)
+def make_training_processor(config: Config):
+    return SS2SupervisedProcessor(config, AugmentationMode.NONE)
 
 
-def make_eval_processor(config: uC.Config):
-    return SS2SupervisedProcessor(config, ProcessorMode.EVAL)
+def make_eval_processor(config: Config):
+    return SS2SupervisedProcessor(config, AugmentationMode.NONE)
 
 
-def make_inference_processor(config: uC.Config):
-    return SS2SupervisedProcessor(config, ProcessorMode.INFERENCE)
+def make_inference_processor(config: Config):
+    return SS2SupervisedProcessor(config, AugmentationMode.NONE)
 
 
 def _debug():
-    config = uF.load_config('main')
-    wandb_config = uF.load_config('mask2former', 'supervised')
-    config = uC.Config.merge(config, wandb_config)
+    config = func.load_config('main')
+    wandb_config = func.load_config('mask2former', 'supervised')
+    config = Config(config, wandb_config)
 
     train_preprocessor = make_training_processor(config)
     eval_preprocessor = make_eval_processor(config)

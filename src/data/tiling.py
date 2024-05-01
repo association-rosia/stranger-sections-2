@@ -3,15 +3,13 @@ import os
 
 import numpy as np
 
-from utils import func
-from utils.cls import Config
+from src.utils import func
+from src.utils.cls import Config
 
-
+#TODO: Create a class Tiler
 def build(config: Config, labeled: bool = True, tile_size: int = 384):
     tiles = []
-    # config = uF.load_config('main')
-    path_labels = config.path.data.raw.train.labels
-
+    
     num_h_tiles, overlap_h, num_w_tiles, overlap_w = get_num_tiles(config, tile_size)
     bboxes = get_coords_tile(config, tile_size, num_h_tiles, overlap_h, num_w_tiles, overlap_w)
 
@@ -21,6 +19,13 @@ def build(config: Config, labeled: bool = True, tile_size: int = 384):
         tiles = get_unlabeled_tiles(config, bboxes)
 
     return tiles
+
+
+def get_labeled_tiles(config: Config, bboxes: list):
+    tiles = []
+    path_labels = config.path.data.raw.train.labels
+    path_labels = func.get_notebooks_path(path_labels)
+
     npy_files = [file for file in os.listdir(path_labels) if file.endswith('.npy')]
 
     for npy_file in npy_files:
@@ -40,6 +45,8 @@ def build(config: Config, labeled: bool = True, tile_size: int = 384):
 def get_unlabeled_tiles(config: Config, bboxes: list):
     tiles = []
     path_images = config.path.data.raw.train.unlabeled
+    path_images = func.get_notebooks_path(path_images)
+
     files = [file for file in os.listdir(path_images) if file.endswith('.jpg')]
 
     for file in files:
@@ -51,7 +58,7 @@ def get_unlabeled_tiles(config: Config, bboxes: list):
     return tiles
 
 
-def get_num_tiles(config: Config, size_tile: int):
+def get_num_tiles(config: Config, tile_size: int):
     size_h = config.data.size_h
     size_w = config.data.size_w
     num_h_tiles = config.data.size_h / tile_size

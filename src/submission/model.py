@@ -1,16 +1,14 @@
 import torch
-import torch.nn.functional as tF
-import wandb.apis.public as wandb_api
 from PIL import Image
 from typing_extensions import Self
 
-import src.data.collate as spv_collate
-from src.data.processor import SS2ImageProcessor
+import src.data.supervised.collate as spv_collate
+import src.data.supervised.processor as spv_processor
 from src.models.train_model import load_model
-from utils.cls import Config, RunDemo
+from src.utils.cls import Config
 
 
-class InferenceModel(torch.nn.Module):
+class SS2InferenceModel(torch.nn.Module):
     def __init__(
             self,
             config: Config,
@@ -38,11 +36,10 @@ class InferenceModel(torch.nn.Module):
 
         return self
 
-    def _get_processor(self) -> SS2ImageProcessor:
+    def _get_processor(self) -> spv_processor.SS2SupervisedProcessor:
         if self.config.mode == 'supervised':
-            # return spv_processor.make_inference_processor(self.config)
-            # TODO: rework this part
             return spv_processor.make_inference_processor(self.config)
+            # TODO: rework this part
         else:
             raise ValueError(f"mode expected 'supervised' but received {self.config.mode}")
 
@@ -72,14 +69,13 @@ class InferenceModel(torch.nn.Module):
 
     def _mask2former_forward(self, inputs) -> torch.Tensor:
         outputs = self.model(inputs)
-        pred_masks = self.processor.hf_processor.post_process_semantic_segmentation(outputs)
+        pred_masks = self.processor.huggingface_processor.post_process_semantic_segmentation(outputs)
 
-        return pred_masks.squeeze()
+        return pred_masks[0]
     
     def _segformer_forward(self, inputs) -> torch.Tensor:
         outputs = self.model(pixel_values=inputs['pixel_values'])
-        # pred_masks = tF.sigmoid(logits).argmax(dim=1).type(torch.uint8)
-        pred_masks = self.processor.hf_processor.post_process_semantic_segmentation(
+        pred_masks = self.processor.huggingface_processor.post_process_semantic_segmentation(
             outputs,
             [(self.config.data.size_h, self.config.data.size_w)]
         )

@@ -12,7 +12,7 @@ import torchmetrics as tm
 
 import src.data.supervised.dataset as spv_dataset
 import src.data.supervised.collate as spv_collate
-from utils import classes as uC
+from src.utils.cls import Config
 
 
 class SegformerLightning(pl.LightningModule):
@@ -142,7 +142,7 @@ class SegformerLightning(pl.LightningModule):
         )
 
 
-def _load_base_model(config: uC.Config):
+def _load_base_model(config: Config):
     model = SegformerForSemanticSegmentation.from_pretrained(
         pretrained_model_name_or_path=config.model_id,
         num_labels=config.num_labels,
@@ -163,10 +163,10 @@ def load_model(config, map_location=None):
 
 
 def _debug():
-    import utils.functions as uF 
-    config = uF.load_config('main')
-    wandb_config = uF.load_config('segformer', 'supervised')
-    config = uC.Config(config, wandb_config)
+    from utils import func
+    config = func.load_config('main')
+    wandb_config = func.load_config('segformer', 'supervised')
+    config = Config(config, wandb_config)
     model = load_model(config)
 
     return

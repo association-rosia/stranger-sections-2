@@ -7,8 +7,8 @@ from PIL import Image
 from torchvision import tv_tensors
 from transformers import Mask2FormerImageProcessor, SegformerImageProcessor
 
-from utils import func
-from utils.cls import Config
+from src.utils import func
+from src.utils.cls import Config
 
 
 class AugmentationMode(Enum):
@@ -47,11 +47,11 @@ class SS2ImageProcessor:
         return inputs
 
     @staticmethod
-    def _numpy_to_list(image):
-        if not isinstance(image, list) and image is not None:
-            image = [image]
+    def _numpy_to_list(array):
+        if not isinstance(array, list) and array is not None:
+            array = [array]
 
-        return image
+        return array
 
     def _preprocess_image_only(self, images):
         return [self.transforms(tv_tensors.Image(image)) for image in images]

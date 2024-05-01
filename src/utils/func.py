@@ -7,7 +7,7 @@ import yaml
 from PIL import Image
 from sklearn.model_selection import train_test_split
 
-from utils import classes as uC
+from src.utils.cls import Config
 
 
 def get_notebooks_path(path: str) -> str:
@@ -17,7 +17,7 @@ def get_notebooks_path(path: str) -> str:
     return new_path
 
 
-def load_config(yaml_file: str, mode: str = None, loading: str = 'object') -> dict | uC.Config:
+def load_config(yaml_file: str, mode: str = None, loading = 'dict') -> dict | Config:
     if mode:
         root = os.path.join('configs', mode, f'{yaml_file}.yaml')
     else:
@@ -29,17 +29,17 @@ def load_config(yaml_file: str, mode: str = None, loading: str = 'object') -> di
         config = yaml.safe_load(f)
 
     if loading == 'object':
-        config = uC.Config(config)
+        config = Config(config)
 
     return config
 
 
-def init_wandb(yml_file: str, mode: str) -> uC.Config:
-    config = load_config('main')
+def init_wandb(yml_file: str, mode: str) -> dict:
+    config = load_config('main', loading='object')
     wandb_dir = get_notebooks_path(config.path.logs)
     os.makedirs(wandb_dir, exist_ok=True)
     os.environ['WANDB_DIR'] = os.path.abspath(wandb_dir)
-    wandb_config = load_config(yml_file, mode, loading='dict')
+    wandb_config = load_config(yml_file, mode)
 
     wandb.init(
         entity=config.wandb.entity,
@@ -47,16 +47,14 @@ def init_wandb(yml_file: str, mode: str) -> uC.Config:
         config=wandb_config
     )
 
-    config = uC.Config(wandb_config)
-
-    return config
+    return wandb_config
 
 
 def get_run(run_id: str) -> wandb_api.Run:
     run = None
 
     if run_id:
-        config = load_config('main')
+        config = load_config('main', loading='object')
 
         api = wandb.Api()
         run = wandb_api.Run(
@@ -71,6 +69,7 @@ def get_run(run_id: str) -> wandb_api.Run:
 
 def load_unsupervised_image(config, tile: dict) -> np.ndarray:
     path = os.path.join(config.path.data.raw.train.unlabeled, f'{tile["image"]}.jpg')
+    path = get_notebooks_path(path)
 
     with open(path, mode='br') as f:
         image = np.array(Image.open(f).convert('RGB')) / 255.0
@@ -84,6 +83,7 @@ def load_unsupervised_image(config, tile: dict) -> np.ndarray:
 
 def load_supervised_image(config, tile: dict) -> np.ndarray:
     path = os.path.join(config.path.data.raw.train.labeled, f'{tile["image"]}.JPG')
+    path = get_notebooks_path(path)
 
     with open(path, mode='br') as f:
         image = np.array(Image.open(f).convert('RGB')) / 255.0
@@ -96,6 +96,7 @@ def load_supervised_image(config, tile: dict) -> np.ndarray:
 
 def load_label(config, tile: dict) -> np.ndarray:
     path = os.path.join(config.path.data.raw.train.labels, f'{tile["image"]}_gt.npy')
+    path = get_notebooks_path(path)
 
     with open(path, mode='br') as f:
         label = np.load(f)
@@ -106,7 +107,7 @@ def load_label(config, tile: dict) -> np.ndarray:
     return label
 
 
-def train_val_split_tiles(config, tiles: list):
+def train_val_split_tiles(config: Config, tiles: list):
     images = list(set([tile['image'] for tile in tiles]))
 
     train_images, val_images = train_test_split(

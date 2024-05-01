@@ -1,15 +1,17 @@
 import os
 
+import torch
 import pytorch_lightning as pl
 import wandb
 
 import src.models.supervised.mask2former.lightning as spv_m2f
 import src.models.supervised.segformer.lightning as spv_seg
 
-from utils import func
-from utils.cls import Config
+from src.utils import func
+from src.utils.cls import Config
 
 import argparse
+import warnings
 
 warnings.filterwarnings('ignore')
 torch.set_float32_matmul_precision('medium')
@@ -19,7 +21,6 @@ def main():
     config = func.load_config('main')
     wandb_config = func.init_wandb(model_name, mode)
     config = Config(config, wandb_config)
-    config = uC.Config.merge(config, wandb_config)
     model = load_model(config)
     trainer = get_trainer(config)
     trainer.fit(model=model)
