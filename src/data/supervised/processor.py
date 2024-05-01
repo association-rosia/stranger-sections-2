@@ -7,7 +7,7 @@ import torch
 import torchvision.transforms.v2 as tv2T
 from PIL import Image
 from torchvision import tv_tensors
-from transformers import Mask2FormerImageProcessor
+from transformers import Mask2FormerImageProcessor, SegformerImageProcessor
 
 from utils import classes as uC
 from utils import functions as uF
@@ -85,6 +85,18 @@ class SS2SupervisedProcessor:
                 image_std=config.data.std,
                 num_labels=config.num_labels,
             )
+        elif config.model_name == 'segformer':
+            processor = SegformerImageProcessor.from_pretrained(
+                pretrained_model_name_or_path=config.model_id,
+                do_rescale=False,
+                do_normalize=True,
+                do_reduce_labels=False,
+                do_pad=False,
+                do_resize=True,
+                image_mean=config.data.mean,
+                image_std=config.data.std,
+                num_labels=config.num_labels,
+            )
 
         return processor
 
@@ -112,7 +124,7 @@ class SS2SupervisedProcessor:
     @staticmethod
     def _get_eval_transforms():
         transforms = tv2T.Compose([
-            tv2T.ToDtype(dtype=torch.float32),
+            tv2T.ToDtype(dtype=torch.float32, scale=True),
             # tv2T.Lambda(
             #     partial(tv2F.adjust_contrast, contrast_factor=self.config.contrast_factor']),
             #     tv_tensors.Image

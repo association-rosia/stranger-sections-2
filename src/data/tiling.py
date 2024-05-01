@@ -7,13 +7,14 @@ from utils import classes as uC
 from utils import functions as uF
 
 
-def get_tiles(size_tile: int = 384):
+def get_tiles(config: uC.Config, tile_size: int = 384):
     tiles = []
-    config = uF.load_config('main')
+    # config = uF.load_config('main')
     path_labels = config.path.data.raw.train.labels
+    path_labels = uF.get_notebooks_path(path_labels)
 
-    num_h_tiles, overlap_h, num_w_tiles, overlap_w = get_num_tiles(config, size_tile)
-    bboxes = get_coords_tile(config, size_tile, num_h_tiles, overlap_h, num_w_tiles, overlap_w)
+    num_h_tiles, overlap_h, num_w_tiles, overlap_w = get_num_tiles(config, tile_size)
+    bboxes = get_coords_tile(config, tile_size, num_h_tiles, overlap_h, num_w_tiles, overlap_w)
     npy_files = [file for file in os.listdir(path_labels) if file.endswith('.npy')]
 
     for npy_file in npy_files:
@@ -30,21 +31,21 @@ def get_tiles(size_tile: int = 384):
     return tiles
 
 
-def get_num_tiles(config: uC.Config, size_tile: int):
+def get_num_tiles(config: uC.Config, tile_size: int):
     size_h = config.data.size_h
     size_w = config.data.size_w
-    num_h_tiles = config.data.size_h / size_tile
-    num_w_tiles = config.data.size_w / size_tile
+    num_h_tiles = config.data.size_h / tile_size
+    num_w_tiles = config.data.size_w / tile_size
 
-    overlap_h = math.ceil(math.ceil(size_tile * math.ceil(num_h_tiles) - size_h) / math.floor(num_h_tiles))
-    overlap_w = math.ceil(math.ceil(size_tile * math.ceil(num_w_tiles) - size_w) / math.floor(num_w_tiles))
+    overlap_h = math.ceil(math.ceil(tile_size * math.ceil(num_h_tiles) - size_h) / math.floor(num_h_tiles))
+    overlap_w = math.ceil(math.ceil(tile_size * math.ceil(num_w_tiles) - size_w) / math.floor(num_w_tiles))
     num_h_tiles = math.ceil(num_h_tiles)
     num_w_tiles = math.ceil(num_w_tiles)
 
     return num_h_tiles, overlap_h, num_w_tiles, overlap_w
 
 
-def get_coords_tile(config: uC.Config, size_tile: int, num_h_tiles: int, overlap_h: int, num_w_tiles: int,
+def get_coords_tile(config: uC.Config, tile_size: int, num_h_tiles: int, overlap_h: int, num_w_tiles: int,
                     overlap_w: int):
     size_h = config.data.size_h
     size_w = config.data.size_w
@@ -52,10 +53,10 @@ def get_coords_tile(config: uC.Config, size_tile: int, num_h_tiles: int, overlap
 
     for i in range(num_h_tiles):
         for j in range(num_w_tiles):
-            x0 = max(0, i * (size_tile - overlap_h))
-            y0 = max(0, j * (size_tile - overlap_w))
-            x1 = min(size_h, x0 + size_tile)
-            y1 = min(size_w, y0 + size_tile)
+            x0 = max(0, i * (tile_size - overlap_h))
+            y0 = max(0, j * (tile_size - overlap_w))
+            x1 = min(size_h, x0 + tile_size)
+            y1 = min(size_w, y0 + tile_size)
 
             if x1 + 1 == size_h:
                 x0 += 1
@@ -71,4 +72,5 @@ def get_coords_tile(config: uC.Config, size_tile: int, num_h_tiles: int, overlap
 
 
 if __name__ == "__main__":
-    tiles = get_tiles()
+    config = uF.load_config('main', loading='object')
+    tiles = get_tiles(config)

@@ -25,19 +25,19 @@ class SS2SupervisedDataset(Dataset):
 
 
 def make_train_dataset(config: uC.Config) -> SS2SupervisedDataset:
-    tiles = tiling.get_tiles()
+    tiles = tiling.get_tiles(config)
     train_tiles, _ = uF.train_val_split_tiles(config, tiles)
     processor = spv_processor.make_training_processor(config)
 
-    return SS2SupervisedDataset(config, tiles, processor)
+    return SS2SupervisedDataset(config, train_tiles, processor)
 
 
 def make_val_dataset(config: uC.Config) -> SS2SupervisedDataset:
-    tiles = tiling.get_tiles()
+    tiles = tiling.get_tiles(config)
     _, val_tiles = uF.train_val_split_tiles(config, tiles)
     processor = spv_processor.make_eval_processor(config)
 
-    return SS2SupervisedDataset(config, tiles, processor)
+    return SS2SupervisedDataset(config, val_tiles, processor)
 
 
 def _debug():
@@ -45,8 +45,8 @@ def _debug():
     from src.data.supervised.collate import get_collate_fn_training
 
     config = uF.load_config('main')
-    wandb_config = uF.load_config('mask2former', 'supervised')
-    config = uC.Config.merge(config, wandb_config)
+    wandb_config = uF.load_config('segformer', 'supervised')
+    config = uC.Config(config, wandb_config)
 
     train_dataset = make_train_dataset(config)
     val_dataset = make_val_dataset(config)
