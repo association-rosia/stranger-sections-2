@@ -4,16 +4,16 @@ import wandb.apis.public as wandb_api
 from PIL import Image
 from typing_extensions import Self
 
-import src.data.supervised.collate as spv_collate
-import src.data.supervised.processor as spv_processor
+import src.data.collate as spv_collate
+from src.data.processor import SS2ImageProcessor
 from src.models.train_model import load_model
-from utils import classes as uC
+from utils.cls import Config, RunDemo
 
 
 class InferenceModel(torch.nn.Module):
     def __init__(
             self,
-            config: uC.Config,
+            config: Config,
             base_model: torch.nn.Module,
             map_location: str
     ) -> None:
@@ -30,7 +30,7 @@ class InferenceModel(torch.nn.Module):
     @classmethod
     def load_from_config(
             cls,
-            config: uC.Config,
+            config: Config,
             map_location: str
     ) -> Self:
         model = load_model(config, map_location=map_location)
@@ -38,8 +38,10 @@ class InferenceModel(torch.nn.Module):
 
         return self
 
-    def _get_processor(self) -> spv_processor.SS2SupervisedProcessor:
+    def _get_processor(self) -> SS2ImageProcessor:
         if self.config.mode == 'supervised':
+            # return spv_processor.make_inference_processor(self.config)
+            # TODO: rework this part
             return spv_processor.make_inference_processor(self.config)
         else:
             raise ValueError(f"mode expected 'supervised' but received {self.config.mode}")

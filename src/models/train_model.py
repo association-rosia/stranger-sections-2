@@ -5,25 +5,37 @@ import wandb
 
 import src.models.supervised.mask2former.lightning as spv_m2f
 import src.models.supervised.segformer.lightning as spv_seg
-from utils import classes as uC
-from utils import functions as uF
-import torch
-import warnings
+
+from utils import func
+from utils.cls import Config
+
+import argparse
 
 warnings.filterwarnings('ignore')
 torch.set_float32_matmul_precision('medium')
 
 def main():
-    config = uF.load_config('main')
-    wandb_config = uF.init_wandb('segformer', 'supervised')
-    config = uC.Config(config, wandb_config)
+    model_name, mode = parse_args()
+    config = func.load_config('main')
+    wandb_config = func.init_wandb(model_name, mode)
+    config = Config(config, wandb_config)
+    config = uC.Config.merge(config, wandb_config)
     model = load_model(config)
     trainer = get_trainer(config)
     trainer.fit(model=model)
     wandb.finish()
 
 
-def load_model(config: uC.Config, map_location=None):
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model_name', type=str)
+    parser.add_argument('--mode', type=str)
+    args = parser.parse_args()
+
+    return args.model_name, args.mode
+
+
+def load_model(config: Config, map_location=None):
     if config.mode == 'supervised':
         if config.model_name == 'mask2former':
             model = spv_m2f.load_model(config, map_location=map_location)
@@ -36,7 +48,7 @@ def load_model(config: uC.Config, map_location=None):
     return model
 
 
-def get_trainer(config: uC.Config):
+def get_trainer(config: Config):
     os.makedirs(config.path.models, exist_ok=True)
 
     checkpoint_callback_loss = pl.callbacks.ModelCheckpoint(

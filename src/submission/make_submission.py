@@ -6,22 +6,17 @@ import numpy as np
 from PIL import Image
 
 from src.submission.model import InferenceModel
-from utils import functions as uF
-from utils import classes as uC
-
-import warnings
-
-warnings.filterwarnings('ignore')
+from utils import func
+from utils.cls import Config
 
 
 def main():
-    config = uF.load_config('main')
-    wandb_run = uF.get_run('ujjdbhrh')
+    config = func.load_config('main')
+    wandb_run = func.get_run('cgtv3aow')
     checkpoint_type = 'loss' # metric, loss
-    
     wandb_run.config['checkpoint'] = f'{wandb_run.name}-{wandb_run.id}-{checkpoint_type}.ckpt'
     # wandb_run.config['checkpoint'] = f'{wandb_run.name}-{wandb_run.id}-loss.ckpt'
-    config = uC.Config(config, wandb_run.config)
+    config = Config(config, wandb_run.config)
     model = InferenceModel.load_from_config(config, 'cuda:0')
     pathname = os.path.join(config.path.data.raw.test.unlabeled, '*.JPG')
     submission_name = f'{wandb_run.name}-{wandb_run.id}-{checkpoint_type}'
