@@ -6,6 +6,7 @@ model_id: 'facebook/mask2former-swin-large-cityscapes-semantic'
 checkpoint:
 
 contrast_factor:
+tile_size: 384
 num_labels: 4
 random_state: 42
 

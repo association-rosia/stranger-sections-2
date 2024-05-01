@@ -142,9 +142,10 @@ def load_model(config, map_location=None):
 
 
 def _debug():
-    config = utils.get_config()
-    wandb_config = utils.load_config('mask2former', 'segmentation')
-    config.update(wandb_config)
+    import utils.functions as uF 
+    config = uF.load_config('main')
+    wandb_config = uF.load_config('mask2former', 'supervised')
+    config = uC.Config.merge(config, wandb_config)
     model = load_model(config)
 
     return
