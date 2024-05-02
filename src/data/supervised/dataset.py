@@ -1,7 +1,7 @@
 from torch.utils.data import Dataset
 
 import src.data.supervised.processor as spv_processor
-from src.data import tiling
+from src.data.tiling import Tiler
 from src.utils import func
 from src.utils.cls import Config
 
@@ -25,7 +25,8 @@ class SS2SupervisedDataset(Dataset):
 
 
 def make_train_dataset(config: Config) -> SS2SupervisedDataset:
-    tiles = tiling.build(config)
+    tiler = Tiler(config)
+    tiles = tiler.build(config)
     train_tiles, _ = func.train_val_split_tiles(config, tiles)
     processor = spv_processor.make_training_processor(config)
 
@@ -33,7 +34,8 @@ def make_train_dataset(config: Config) -> SS2SupervisedDataset:
 
 
 def make_val_dataset(config: Config) -> SS2SupervisedDataset:
-    tiles = tiling.build(config)
+    tiler = Tiler(config)
+    tiles = tiler.build(config)
     _, val_tiles = func.train_val_split_tiles(config, tiles)
     processor = spv_processor.make_eval_processor(config)
 
