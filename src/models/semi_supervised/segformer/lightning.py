@@ -63,10 +63,14 @@ class SegFormerLightning(pl.LightningModule):
         return loss
 
     def segmentation_forward(self, inputs):
+        func.display_tensor(inputs['pixel_values'][0], 'inputs["pixel_values"][0]')
+        func.display_tensor(inputs['pixel_values'][1], 'inputs["pixel_values"][1]')
         outputs = self.student(**inputs)
 
         # TODO: log the predicted mask
-        # mask = self.outputs_to_mask(inputs, outputs)
+        masks = self.reshape_outputs(inputs, outputs, return_mask=True)
+        func.display_tensor(masks[0], 'masks[0]', is_2d=True)
+        func.display_tensor(masks[1], 'masks[1]', is_2d=True)
 
         return outputs.loss  # CrossEntropyLoss
 
@@ -95,6 +99,9 @@ class SegFormerLightning(pl.LightningModule):
 
         # replace 0 by 255 ?
         loss = self.sam_loss_fct(consistency_logits, sam_masks.long())
+
+        func.display_tensor(consistency_masks[0])
+        func.display_tensor(sam_masks[0])
 
         return loss
 
@@ -206,17 +213,20 @@ class SegFormerLightning(pl.LightningModule):
         return mask
 
     @staticmethod
-    def reshape_outputs(inputs, outputs):
+    def reshape_outputs(inputs, outputs, return_mask=False):
         logits = outputs.logits
 
-        mask = nn.functional.interpolate(
+        outputs = nn.functional.interpolate(
             logits,
             size=inputs['pixel_values'].shape[-2:],
             mode='bilinear',
             align_corners=False
         )
 
-        return mask
+        if return_mask:
+            outputs = outputs.argmax(dim=1)
+
+        return outputs
 
     @torch.no_grad()
     def update_teacher(self, teacher_momentum=0.994):

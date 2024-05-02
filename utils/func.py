@@ -6,6 +6,7 @@ import wandb.apis.public as wandb_api
 import yaml
 from PIL import Image
 from sklearn.model_selection import train_test_split
+import matplotlib.pyplot as plt
 
 from utils.cls import Config
 
@@ -119,3 +120,11 @@ def train_val_split_tiles(config, tiles: list):
     val_tiles = [tile for tile in tiles if tile['image'] in val_images]
 
     return train_tiles, val_tiles
+
+
+def display_tensor(tensor, name, is_2d=False):
+    if is_2d:
+        tensor = tensor.unsqueeze(dim=0)
+
+    plt.imshow(tensor.permute(1, 2, 0).float().cpu())
+    plt.savefig(os.path.join('logs', 'plots', name))
