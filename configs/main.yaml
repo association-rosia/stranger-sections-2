@@ -21,3 +21,4 @@ data:
   size_w: 1360
   mean: [ 0.4175, 0.3497, 0.2607 ]
   std: [ 0.2044, 0.1909, 0.1867 ]
+  class_labels: {0: 'Background', 1: 'Inertinite', 2: 'Vitrinite', 3: 'Liptinite'}

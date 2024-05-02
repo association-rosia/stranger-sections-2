@@ -1,23 +1,23 @@
 dry: false
 
 mode: 'supervised'
-model_name: 'mask2former'
-model_id: 'facebook/mask2former-swin-large-cityscapes-semantic'
+model_name: 'segformer'
+model_id: 'nvidia/segformer-b0-finetuned-ade-512-512'
 checkpoint:
 
-size_tile: 384
 contrast_factor:
-tile_size: 384
+tile_size: 512
 num_labels: 4
+label_weights: {'Background': 0.035, 'Inertinite': 1.373, 'Vitrinite': 0.376, 'Liptinite': 2.216}
 random_state: 42
 
-devices: [ 0, 1, 2, 3 ]
+devices: [ 0 ]
 max_epochs: 100
-batch_size: 2
+batch_size: 16
 num_workers: 23
+# criterion: CrossEntropyLoss
 val_check_interval: 1.0
 early_stopping_patience: 15
 reduce_lr_on_plateau_patience: 7
 reduce_lr_on_plateau_factor: 0.5
 lr: 0.000005
-

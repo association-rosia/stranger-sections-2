@@ -4,8 +4,8 @@ from torch.utils.data import Dataset
 
 from src.data import tiling
 from src.data.processor import SS2ImageProcessor, AugmentationMode
-from utils import func
-from utils.cls import Config
+from src.utils import func
+from src.utils.cls import Config
 
 
 class SS2SemiSupervisedDataset(Dataset):

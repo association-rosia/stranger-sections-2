@@ -1,13 +1,13 @@
-import src.data.supervised.processor as spv_processor
 from torch.utils.data import Dataset
 
+import src.data.supervised.processor as spv_processor
 from src.data import tiling
-from utils import func
-from utils.cls import Config
+from src.utils import func
+from src.utils.cls import Config
 
 
 class SS2SupervisedDataset(Dataset):
-    def __init__(self, config: Config, tiles: list, processor: spv_processor.SS2ImageProcessor):
+    def __init__(self, config: Config, tiles: list, processor: spv_processor.SS2SupervisedProcessor):
         super().__init__()
         self.config = config
         self.tiles = tiles
@@ -25,7 +25,7 @@ class SS2SupervisedDataset(Dataset):
 
 
 def make_train_dataset(config: Config) -> SS2SupervisedDataset:
-    tiles = tiling.build()
+    tiles = tiling.build(config)
     train_tiles, _ = func.train_val_split_tiles(config, tiles)
     processor = spv_processor.make_training_processor(config)
 
@@ -33,7 +33,7 @@ def make_train_dataset(config: Config) -> SS2SupervisedDataset:
 
 
 def make_val_dataset(config: Config) -> SS2SupervisedDataset:
-    tiles = tiling.build()
+    tiles = tiling.build(config)
     _, val_tiles = func.train_val_split_tiles(config, tiles)
     processor = spv_processor.make_eval_processor(config)
 
@@ -42,11 +42,11 @@ def make_val_dataset(config: Config) -> SS2SupervisedDataset:
 
 def _debug():
     from torch.utils.data import DataLoader
-    from src.data.collate import get_collate_fn_training
+    from src.data.supervised.collate import get_collate_fn_training
 
     config = func.load_config('main')
-    wandb_config = func.load_config('mask2former', 'supervised')
-    config = Config.merge(config, wandb_config)
+    wandb_config = func.load_config('segformer', 'supervised')
+    config = Config(config, wandb_config)
 
     train_dataset = make_train_dataset(config)
     val_dataset = make_val_dataset(config)
