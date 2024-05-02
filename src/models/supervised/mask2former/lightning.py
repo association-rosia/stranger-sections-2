@@ -11,8 +11,8 @@ from transformers import Mask2FormerForUniversalSegmentation
 import src.data.collate as spv_collate
 import src.data.supervised.make_dataset as spv_dataset
 from src.data.processor import SS2ImageProcessor
-from utils import func
-from utils.cls import Config
+from src.utils import func
+from src.utils.cls import Config
 
 
 class Mask2FormerLightning(pl.LightningModule):

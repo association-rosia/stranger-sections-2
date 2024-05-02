@@ -5,7 +5,7 @@ import numpy as np
 from PIL import Image
 
 from src.submission.model import InferenceModel
-from utils import func
+from src.utils import func
 
 
 def main():

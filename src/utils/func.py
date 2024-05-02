@@ -8,7 +8,7 @@ from PIL import Image
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 
-from utils.cls import Config
+from src.utils.cls import Config
 
 
 def get_notebooks_path(path: str) -> str:
@@ -75,7 +75,6 @@ def load_unsupervised_image(config, tile: dict) -> np.ndarray:
 
     with open(path, mode='br') as f:
         image = np.array(Image.open(f).convert('RGB')) / 255.0
-        image /= 255
 
     x0, y0, x1, y1 = tile['bbox']
     image = image[x0:x1, y0:y1, :]
@@ -123,8 +122,18 @@ def train_val_split_tiles(config, tiles: list):
 
 
 def display_tensor(tensor, name, is_2d=False):
+    os.makedirs('logs', exist_ok=True)
+    os.makedirs(os.path.join('logs', 'plots'), exist_ok=True)
+
     if is_2d:
         tensor = tensor.unsqueeze(dim=0)
 
     plt.imshow(tensor.permute(1, 2, 0).float().cpu())
+    plt.savefig(os.path.join('logs', 'plots', name))
+
+
+def display_array(array, name):
+    os.makedirs('logs', exist_ok=True)
+    os.makedirs(os.path.join('logs', 'plots'), exist_ok=True)
+    plt.imshow(array)
     plt.savefig(os.path.join('logs', 'plots', name))

@@ -6,7 +6,7 @@ from typing_extensions import Self
 import src.data.collate as spv_collate
 from src.data.processor import SS2ImageProcessor
 from src.models.train_model import load_model
-from utils.cls import Config, RunDemo
+from src.utils.cls import Config, RunDemo
 
 
 class InferenceModel(torch.nn.Module):

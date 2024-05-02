@@ -2,8 +2,8 @@ from torch.utils.data import Dataset
 
 import src.data.processor as spv_processor
 from src.data import tiling
-from utils import func
-from utils.cls import Config
+from src.utils import func
+from src.utils.cls import Config
 
 
 class SS2SupervisedDataset(Dataset):

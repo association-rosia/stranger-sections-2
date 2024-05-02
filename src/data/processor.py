@@ -7,8 +7,8 @@ from PIL import Image
 from torchvision import tv_tensors
 from transformers import Mask2FormerImageProcessor, SegformerImageProcessor
 
-from utils import func
-from utils.cls import Config
+from src.utils import func
+from src.utils.cls import Config
 
 
 class AugmentationMode(Enum):
@@ -89,12 +89,12 @@ class SS2ImageProcessor:
             processor = SegformerImageProcessor.from_pretrained(
                 pretrained_model_name_or_path=config.model_id,
                 do_rescale=False,
-                do_normalize=True,
-                do_reduce_labels=True,
+                do_normalize=False,
+                do_reduce_labels=False,
                 do_pad=False,
-                do_resize=True,
-                image_mean=config.data.mean,
-                image_std=config.data.std,
+                do_resize=False,
+                # image_mean=config.data.mean,
+                # image_std=config.data.std,
                 num_labels=config.num_labels
             )
         else:

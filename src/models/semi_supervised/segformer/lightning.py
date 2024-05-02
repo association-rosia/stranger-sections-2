@@ -13,8 +13,8 @@ from transformers import SegformerForSemanticSegmentation, SamModel, SamImagePro
 import src.data.semi_supervised.make_dataset as ssp_dataset
 from src.data import tiling
 from src.data.processor import SS2ImageProcessor
-from utils import func
-from utils.cls import Config
+from src.utils import func
+from src.utils.cls import Config
 
 torch.set_float32_matmul_precision('medium')
 
@@ -28,9 +28,9 @@ class SegFormerLightning(pl.LightningModule):
         self.teacher = load_teacher_model(self.config)
         self.sam, self.sam_processor = load_sam(self.config)
 
-        # TODO: create our own loss function CrossEntropyLoss works with a logit and a mask (not 2 masks)
-        self.consistency_loss_fct = nn.CrossEntropyLoss(ignore_index=255)
-        self.sam_loss_fct = nn.CrossEntropyLoss(ignore_index=255)
+        self.segmentation_loss_fct = nn.CrossEntropyLoss()
+        self.consistency_loss_fct = nn.CrossEntropyLoss()
+        self.sam_loss_fct = nn.CrossEntropyLoss()
         self.delta_c = 1
         self.delta_s = 1
 
@@ -40,11 +40,10 @@ class SegFormerLightning(pl.LightningModule):
         self.class_labels = {0: 'Background', 1: 'Inertinite', 2: 'Vitrinite', 3: 'Liptinite'}
 
     def forward(self, batch):
-        segmentation_input, consistency_inputs = batch
+        segmentation_input, segmentation_image, consistency_inputs, consistency_image = batch
         segmentation_loss = self.segmentation_forward(segmentation_input)
         consistency_loss, consistency_logits_1 = self.consistency_forward(consistency_inputs)
         sam_loss = self.sam_forward(consistency_inputs, consistency_logits_1)
-
         loss = segmentation_loss + self.delta_c * consistency_loss + self.delta_s * sam_loss
 
         return loss
@@ -63,28 +62,28 @@ class SegFormerLightning(pl.LightningModule):
         return loss
 
     def segmentation_forward(self, inputs):
-        func.display_tensor(inputs['pixel_values'][0], 'inputs["pixel_values"][0]')
-        func.display_tensor(inputs['pixel_values'][1], 'inputs["pixel_values"][1]')
+        labels = self.reshape_labels(inputs)
         outputs = self.student(**inputs)
+        logits = self.reshape_outputs(inputs, outputs)
 
         # TODO: log the predicted mask
-        masks = self.reshape_outputs(inputs, outputs, return_mask=True)
-        func.display_tensor(masks[0], 'masks[0]', is_2d=True)
-        func.display_tensor(masks[1], 'masks[1]', is_2d=True)
+        # masks = self.reshape_outputs(inputs, outputs, return_mask=True)
 
-        return outputs.loss  # CrossEntropyLoss
+        loss = self.segmentation_loss_fct(logits, labels)
+
+        return loss
 
     def consistency_forward(self, inputs):
         inputs_1, inputs_2 = inputs
 
         outputs_1 = self.student(**inputs_1)
         logits_1 = self.reshape_outputs(inputs_1, outputs_1)
+        # mask_1 = self.logits_to_masks(logits_1)
 
         outputs_2 = self.teacher(**inputs_2)
         logits_2 = self.reshape_outputs(inputs_2, outputs_2)
         mask_2 = self.logits_to_masks(logits_2)
 
-        # replace 0 by 255 ?
         loss = self.consistency_loss_fct(logits_1, mask_2)
 
         return loss, logits_1
@@ -97,11 +96,7 @@ class SegFormerLightning(pl.LightningModule):
         flatten_outputs = self.sam(**flatten_inputs)
         sam_masks = self.post_process_flatten_outputs(flatten_inputs, flatten_outputs, values, idcs)
 
-        # replace 0 by 255 ?
         loss = self.sam_loss_fct(consistency_logits, sam_masks.long())
-
-        func.display_tensor(consistency_masks[0])
-        func.display_tensor(sam_masks[0])
 
         return loss
 
@@ -211,6 +206,21 @@ class SegFormerLightning(pl.LightningModule):
         mask = logits.argmax(dim=1)
 
         return mask
+
+    @staticmethod
+    def reshape_labels(inputs):
+        labels = inputs['labels'].unsqueeze(dim=1)
+
+        labels = nn.functional.interpolate(
+            labels,
+            size=inputs['pixel_values'].shape[-2:],
+            mode='bilinear',
+            align_corners=False
+        )
+
+        labels = labels.squeeze(dim=1)
+
+        return labels
 
     @staticmethod
     def reshape_outputs(inputs, outputs, return_mask=False):

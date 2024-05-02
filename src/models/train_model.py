@@ -6,8 +6,8 @@ import wandb
 
 import src.models.semi_supervised.segformer.lightning as ssp_sfm
 import src.models.supervised.mask2former.lightning as spv_m2f
-from utils import func
-from utils.cls import Config
+from src.utils import func
+from src.utils.cls import Config
 
 
 def main():

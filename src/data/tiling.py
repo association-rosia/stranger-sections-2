@@ -3,8 +3,8 @@ import os
 
 import numpy as np
 
-from utils import func
-from utils.cls import Config
+from src.utils import func
+from src.utils.cls import Config
 
 
 def build(labeled: bool = True, size_tile: int = 384):
