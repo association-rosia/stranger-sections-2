@@ -9,6 +9,8 @@ import src.models.supervised.mask2former.lightning as spv_m2f
 from src.utils import func
 from src.utils.cls import Config
 
+warnings.filterwarnings('ignore')
+torch.set_float32_matmul_precision('medium')
 
 def main():
     model_name, mode = parse_args()
@@ -34,6 +36,8 @@ def load_model(config: Config, map_location=None):
     if config.mode == 'supervised':
         if config.model_name == 'mask2former':
             model = spv_m2f.load_model(config, map_location=map_location)
+        elif config.model_name == 'segformer':
+            model = spv_seg.load_model(config, map_location=map_location)
 
     elif config.mode == 'semi_supervised':
         if config.model_name == 'segformer':
@@ -48,12 +52,22 @@ def load_model(config: Config, map_location=None):
 def get_trainer(config: Config):
     os.makedirs(config.path.models, exist_ok=True)
 
-    checkpoint_callback = pl.callbacks.ModelCheckpoint(
+    checkpoint_callback_loss = pl.callbacks.ModelCheckpoint(
         save_top_k=1,
         monitor='val/loss',
         mode='min',
         dirpath=config.path.models,
-        filename=f'{wandb.run.name}-{wandb.run.id}',
+        filename=f'{wandb.run.name}-{wandb.run.id}-loss',
+        auto_insert_metric_name=False,
+        verbose=True
+    )
+
+    checkpoint_callback_metric = pl.callbacks.ModelCheckpoint(
+        save_top_k=1,
+        monitor='val/iou-micro',
+        mode='max',
+        dirpath=config.path.models,
+        filename=f'{wandb.run.name}-{wandb.run.id}-metric',
         auto_insert_metric_name=False,
         verbose=True
     )
@@ -69,7 +83,7 @@ def get_trainer(config: Config):
         trainer = pl.Trainer(
             max_epochs=2,
             logger=pl.loggers.WandbLogger(),
-            callbacks=[checkpoint_callback],
+            callbacks=[checkpoint_callback_loss, checkpoint_callback_metric],
             devices=config.devices,
             precision='16-mixed',
             limit_train_batches=3,
@@ -80,7 +94,7 @@ def get_trainer(config: Config):
             devices=config.devices,
             max_epochs=config.max_epochs,
             logger=pl.loggers.WandbLogger(),
-            callbacks=[checkpoint_callback, early_stopping_callback],
+            callbacks=[checkpoint_callback_loss, checkpoint_callback_metric, early_stopping_callback],
             precision='16-mixed',
             strategy='ddp_find_unused_parameters_true',
             val_check_interval=config.val_check_interval
@@ -90,7 +104,7 @@ def get_trainer(config: Config):
             devices=config.devices,
             max_epochs=config.max_epochs,
             logger=pl.loggers.WandbLogger(),
-            callbacks=[checkpoint_callback, early_stopping_callback],
+            callbacks=[checkpoint_callback_loss, checkpoint_callback_metric, early_stopping_callback],
             precision='16-mixed',
             val_check_interval=config.val_check_interval
         )

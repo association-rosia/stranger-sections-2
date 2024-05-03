@@ -72,6 +72,7 @@ def get_run(run_id: str) -> wandb_api.Run:
 
 def load_unsupervised_image(config, tile: dict) -> np.ndarray:
     path = os.path.join(config.path.data.raw.train.unlabeled, f'{tile["image"]}.jpg')
+    path = get_notebooks_path(path)
 
     with open(path, mode='br') as f:
         image = np.array(Image.open(f).convert('RGB')) / 255.0
@@ -96,6 +97,7 @@ def load_supervised_image(config, tile: dict) -> np.ndarray:
 
 def load_label(config, tile: dict) -> np.ndarray:
     path = os.path.join(config.path.data.raw.train.labels, f'{tile["image"]}_gt.npy')
+    path = get_notebooks_path(path)
 
     with open(path, mode='br') as f:
         label = np.load(f)
@@ -106,7 +108,7 @@ def load_label(config, tile: dict) -> np.ndarray:
     return label
 
 
-def train_val_split_tiles(config, tiles: list):
+def train_val_split_tiles(config: Config, tiles: list):
     images = list(set([tile['image'] for tile in tiles]))
 
     train_images, val_images = train_test_split(

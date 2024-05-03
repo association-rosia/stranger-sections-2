@@ -1,15 +1,14 @@
 import torch
-import wandb.apis.public as wandb_api
 from PIL import Image
 from typing_extensions import Self
 
-import src.data.collate as spv_collate
-from src.data.processor import SS2ImageProcessor
+import src.data.supervised.collate as spv_collate
+import src.data.supervised.processor as spv_processor
 from src.models.train_model import load_model
-from src.utils.cls import Config, RunDemo
+from src.utils.cls import Config
 
 
-class InferenceModel(torch.nn.Module):
+class SS2InferenceModel(torch.nn.Module):
     def __init__(
             self,
             config: Config,
@@ -27,30 +26,28 @@ class InferenceModel(torch.nn.Module):
         self.collate = self._get_collate()
 
     @classmethod
-    def load_from_wandb_run(
+    def load_from_config(
             cls,
             config: Config,
-            wandb_run: wandb_api.Run | RunDemo,
             map_location: str
     ) -> Self:
-
-        config = Config.merge(config, wandb_run.config)
         model = load_model(config, map_location=map_location)
-        self = cls(config, model, map_location=map_location)
+        self = cls(config, model.model, map_location=map_location)
 
         return self
 
-    def _get_processor(self) -> SS2ImageProcessor:
+    def _get_processor(self) -> spv_processor.SS2SupervisedProcessor:
         if self.config.mode == 'supervised':
-            # return spv_processor.make_infering_processor(self.config)
+            return spv_processor.make_inference_processor(self.config)
             # TODO: rework this part
-            pass
         else:
             raise ValueError(f"mode expected 'supervised' but received {self.config.mode}")
 
     def _get_base_model_forward(self):
         if self.config.model_name == 'mask2former':
             return self._mask2former_forward
+        if self.config.model_name == 'segformer':
+            return self._segformer_forward
         else:
             raise ValueError(f"model_name expected 'mask2former' but received {self.config.model_name}")
 
@@ -62,16 +59,25 @@ class InferenceModel(torch.nn.Module):
 
     @torch.inference_mode
     def forward(self, image: Image.Image) -> torch.Tensor:
-        return self.base_model_forward(image)[0]
-
-    def _mask2former_forward(self, images: Image.Image | list[Image.Image]) -> torch.Tensor:
-        if isinstance(images, Image.Image):
-            images = [images]
-
+        # if isinstance(images, Image.Image):
+        images = [image]
         inputs = self.processor.preprocess(images)
-        # inputs = self.collate(inputs)
         inputs.to(device=self.map_location)
-        outputs = self.model(inputs)
-        mask_pred = self.processor.huggingface_processor.post_process_semantic_segmentation(outputs)
+        pred_masks = self.base_model_forward(inputs)
 
-        return mask_pred
+        return pred_masks
+
+    def _mask2former_forward(self, inputs) -> torch.Tensor:
+        outputs = self.model(inputs)
+        pred_masks = self.processor.huggingface_processor.post_process_semantic_segmentation(outputs)
+
+        return pred_masks[0]
+    
+    def _segformer_forward(self, inputs) -> torch.Tensor:
+        outputs = self.model(pixel_values=inputs['pixel_values'])
+        pred_masks = self.processor.huggingface_processor.post_process_semantic_segmentation(
+            outputs,
+            [(self.config.data.size_h, self.config.data.size_w)]
+        )
+
+        return pred_masks[0]

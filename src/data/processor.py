@@ -47,11 +47,11 @@ class SS2ImageProcessor:
         return inputs
 
     @staticmethod
-    def _numpy_to_list(image):
-        if not isinstance(image, list) and image is not None:
-            image = [image]
+    def _numpy_to_list(array):
+        if not isinstance(array, list) and array is not None:
+            array = [array]
 
-        return image
+        return array
 
     def _preprocess_image_only(self, images):
         return [self.transforms(tv_tensors.Image(image)) for image in images]
