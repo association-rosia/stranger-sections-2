@@ -7,11 +7,11 @@ from src.utils import func
 from src.utils.cls import Config
 
 #TODO: Create a class Tiler
-def build(config: Config, labeled: bool = True, tile_size: int = 384):
+def build(config: Config, labeled: bool = True):
     tiles = []
     
-    num_h_tiles, overlap_h, num_w_tiles, overlap_w = get_num_tiles(config, tile_size)
-    bboxes = get_coords_tile(config, tile_size, num_h_tiles, overlap_h, num_w_tiles, overlap_w)
+    num_h_tiles, overlap_h, num_w_tiles, overlap_w = get_num_tiles(config)
+    bboxes = get_coords_tile(config, num_h_tiles, overlap_h, num_w_tiles, overlap_w)
 
     if labeled:
         tiles = get_labeled_tiles(config, bboxes)
@@ -58,32 +58,31 @@ def get_unlabeled_tiles(config: Config, bboxes: list):
     return tiles
 
 
-def get_num_tiles(config: Config, tile_size: int):
+def get_num_tiles(config: Config):
     size_h = config.data.size_h
     size_w = config.data.size_w
-    num_h_tiles = config.data.size_h / tile_size
-    num_w_tiles = config.data.size_w / tile_size
+    num_h_tiles = config.data.size_h / config.tile_size
+    num_w_tiles = config.data.size_w / config.tile_size
 
-    overlap_h = math.ceil(math.ceil(tile_size * math.ceil(num_h_tiles) - size_h) / math.floor(num_h_tiles))
-    overlap_w = math.ceil(math.ceil(tile_size * math.ceil(num_w_tiles) - size_w) / math.floor(num_w_tiles))
+    overlap_h = math.ceil(math.ceil(config.tile_size * math.ceil(num_h_tiles) - size_h) / math.floor(num_h_tiles))
+    overlap_w = math.ceil(math.ceil(config.tile_size * math.ceil(num_w_tiles) - size_w) / math.floor(num_w_tiles))
     num_h_tiles = math.ceil(num_h_tiles)
     num_w_tiles = math.ceil(num_w_tiles)
 
     return num_h_tiles, overlap_h, num_w_tiles, overlap_w
 
 
-def get_coords_tile(config: Config, tile_size: int, num_h_tiles: int, overlap_h: int, num_w_tiles: int,
-                    overlap_w: int):
+def get_coords_tile(config: Config, num_h_tiles: int, overlap_h: int, num_w_tiles: int, overlap_w: int):
     size_h = config.data.size_h
     size_w = config.data.size_w
     coords_tile = []
 
     for i in range(num_h_tiles):
         for j in range(num_w_tiles):
-            x0 = max(0, i * (tile_size - overlap_h))
-            y0 = max(0, j * (tile_size - overlap_w))
-            x1 = min(size_h, x0 + tile_size)
-            y1 = min(size_w, y0 + tile_size)
+            x0 = max(0, i * (config.tile_size - overlap_h))
+            y0 = max(0, j * (config.tile_size - overlap_w))
+            x1 = min(size_h, x0 + config.tile_size)
+            y1 = min(size_w, y0 + config.tile_size)
 
             if x1 + 1 == size_h:
                 x0 += 1

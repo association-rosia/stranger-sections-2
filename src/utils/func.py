@@ -35,12 +35,12 @@ def load_config(yaml_file: str, mode: str = None, loading: str = 'dict') -> dict
     return config
 
 
-def init_wandb(yml_file: str, mode: str) -> Config:
+def init_wandb(yml_file: str, mode: str) -> dict:
     config = load_config('main', loading='object')
     wandb_dir = get_notebooks_path(config.path.logs)
     os.makedirs(wandb_dir, exist_ok=True)
     os.environ['WANDB_DIR'] = os.path.abspath(wandb_dir)
-    wandb_config = load_config(yml_file, mode, loading='dict')
+    wandb_config = load_config(yml_file, mode)
 
     wandb.init(
         entity=config.wandb.entity,
@@ -48,9 +48,7 @@ def init_wandb(yml_file: str, mode: str) -> Config:
         config=wandb_config
     )
 
-    config = Config(wandb_config)
-
-    return config
+    return wandb_config
 
 
 def get_run(run_id: str) -> wandb_api.Run:
