@@ -1,17 +1,17 @@
-import wandb
 import os
+
+import pytorch_lightning as pl
 import torch
 import torch.nn.functional as tF
+import torchmetrics as tm
+import wandb
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
-import pytorch_lightning as pl
-
 from transformers import SegformerForSemanticSegmentation
-import torchmetrics as tm
 
-import src.data.supervised.dataset as spv_dataset
 import src.data.collate as spv_collate
+import src.data.supervised.dataset as spv_dataset
 from src.utils.cls import Config
 
 
@@ -70,16 +70,15 @@ class SegformerLightning(pl.LightningModule):
             'frequency': 1
         }
         return [optimizer], [scheduler]
-    
+
     def configure_criterion(self):
         class_labels = self.config.data.class_labels.__dict__
         class_ordered = sorted([int(k) for k in class_labels.keys()])
         label_weights = self.config.label_weights.__dict__
         weight = torch.Tensor([label_weights[class_labels[str(i)]] for i in class_ordered])
-        
+
         return torch.nn.CrossEntropyLoss(weight=weight)
 
-    
     def configure_metrics(self):
         num_labels = self.config.num_labels
 

@@ -1,9 +1,9 @@
+import src.data.supervised.collate as spv_collate
+import src.data.supervised.processor as spv_processor
 import torch
 from PIL import Image
 from typing_extensions import Self
 
-import src.data.supervised.collate as spv_collate
-import src.data.supervised.processor as spv_processor
 from src.models.train_model import load_model
 from src.utils.cls import Config
 
@@ -72,7 +72,7 @@ class SS2InferenceModel(torch.nn.Module):
         pred_masks = self.processor.huggingface_processor.post_process_semantic_segmentation(outputs)
 
         return pred_masks[0]
-    
+
     def _segformer_forward(self, inputs) -> torch.Tensor:
         outputs = self.model(pixel_values=inputs['pixel_values'])
         pred_masks = self.processor.huggingface_processor.post_process_semantic_segmentation(

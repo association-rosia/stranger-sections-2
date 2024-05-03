@@ -1,12 +1,12 @@
 import os
 
+import matplotlib.pyplot as plt
 import numpy as np
 import wandb
 import wandb.apis.public as wandb_api
 import yaml
 from PIL import Image
 from sklearn.model_selection import train_test_split
-import matplotlib.pyplot as plt
 
 from src.utils.cls import Config
 

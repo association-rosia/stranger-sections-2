@@ -6,10 +6,9 @@ import numpy as np
 from src.utils import func
 from src.utils.cls import Config
 
-#TODO: Create a class Tiler
+
+# TODO: Create a class Tiler
 def build(config: Config, labeled: bool = True):
-    tiles = []
-    
     num_h_tiles, overlap_h, num_w_tiles, overlap_w = get_num_tiles(config)
     bboxes = get_coords_tile(config, num_h_tiles, overlap_h, num_w_tiles, overlap_w)
 
