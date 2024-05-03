@@ -163,7 +163,7 @@ class SS2ImageProcessor:
 def _debug():
     config = func.load_config('main')
     wandb_config = func.load_config('segformer', 'semi_supervised')
-    config = Config.merge(config, wandb_config)
+    config = Config(config, wandb_config)
 
     processor = SS2ImageProcessor(config)
 

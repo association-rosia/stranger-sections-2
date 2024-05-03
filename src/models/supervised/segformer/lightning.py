@@ -11,7 +11,7 @@ from transformers import SegformerForSemanticSegmentation
 import torchmetrics as tm
 
 import src.data.supervised.dataset as spv_dataset
-import src.data.supervised.collate as spv_collate
+import src.data.collate as spv_collate
 from src.utils.cls import Config
 
 

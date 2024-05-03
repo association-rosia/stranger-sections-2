@@ -1,14 +1,13 @@
-import src.data.supervised.processor as spv_processor
 from torch.utils.data import Dataset
 
-import src.data.processor as spv_processor
+import src.data.processor as processor
 from src.data import tiling
 from src.utils import func
 from src.utils.cls import Config
 
 
 class SS2SupervisedDataset(Dataset):
-    def __init__(self, config: Config, tiles: list, processor: spv_processor.SS2ImageProcessor):
+    def __init__(self, config: Config, tiles: list, processor: processor.SS2ImageProcessor):
         super().__init__()
         self.config = config
         self.tiles = tiles
@@ -28,7 +27,7 @@ class SS2SupervisedDataset(Dataset):
 def make_train_dataset(config: Config) -> SS2SupervisedDataset:
     tiles = tiling.build()
     train_tiles, _ = func.train_val_split_tiles(config, tiles)
-    processor = spv_processor.make_training_processor(config)
+    # processor = processor.make_training_processor(config)
 
     return SS2SupervisedDataset(config, train_tiles, processor)
 
@@ -36,7 +35,7 @@ def make_train_dataset(config: Config) -> SS2SupervisedDataset:
 def make_val_dataset(config: Config) -> SS2SupervisedDataset:
     tiles = tiling.build(config)
     _, val_tiles = func.train_val_split_tiles(config, tiles)
-    processor = spv_processor.make_eval_processor(config)
+    # processor = processor.make_eval_processor(config)
 
     return SS2SupervisedDataset(config, val_tiles, processor)
 
@@ -47,7 +46,7 @@ def _debug():
 
     config = func.load_config('main')
     wandb_config = func.load_config('mask2former', 'supervised')
-    config = Config.merge(config, wandb_config)
+    config = Config(config, wandb_config)
 
     train_dataset = make_train_dataset(config)
     val_dataset = make_val_dataset(config)

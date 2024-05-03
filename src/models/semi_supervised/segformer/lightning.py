@@ -34,8 +34,8 @@ class SegFormerLightning(pl.LightningModule):
         self.delta_c = 1
         self.delta_s = 1
 
-        self.labeled_tiles = tiling.build(labeled=True, size_tile=self.config.size_tile)
-        self.unlabeled_tiles = tiling.build(labeled=False, size_tile=self.config.size_tile)
+        self.labeled_tiles = tiling.build(self.config, labeled=True)
+        self.unlabeled_tiles = tiling.build(self.config, labeled=False)
         self.processor = SS2ImageProcessor.get_huggingface_processor(config)
         self.class_labels = {0: 'Background', 1: 'Inertinite', 2: 'Vitrinite', 3: 'Liptinite'}
 

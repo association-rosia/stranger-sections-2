@@ -18,7 +18,7 @@ def get_notebooks_path(path: str) -> str:
     return new_path
 
 
-def load_config(yaml_file: str, mode: str = None, loading: str = 'object') -> dict | Config:
+def load_config(yaml_file: str, mode: str = None, loading: str = 'dict') -> dict | Config:
     if mode:
         root = os.path.join('configs', mode, f'{yaml_file}.yaml')
     else:
@@ -36,7 +36,7 @@ def load_config(yaml_file: str, mode: str = None, loading: str = 'object') -> di
 
 
 def init_wandb(yml_file: str, mode: str) -> Config:
-    config = load_config('main')
+    config = load_config('main', loading='object')
     wandb_dir = get_notebooks_path(config.path.logs)
     os.makedirs(wandb_dir, exist_ok=True)
     os.environ['WANDB_DIR'] = os.path.abspath(wandb_dir)

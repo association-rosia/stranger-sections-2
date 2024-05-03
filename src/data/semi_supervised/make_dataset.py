@@ -104,7 +104,7 @@ def _debug():
 
     config = func.load_config('main')
     wandb_config = func.load_config('segformer', 'semi_supervised')
-    config = Config.merge(config, wandb_config)
+    config = Config(config, wandb_config)
 
     labeled_tiles = tiling.build(labeled=True, size_tile=wandb_config.size_tile)
     unlabeled_tiles = tiling.build(labeled=False, size_tile=wandb_config.size_tile)
