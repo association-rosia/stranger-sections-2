@@ -57,7 +57,7 @@ class SegFormerLightning(pl.LightningModule):
     def training_step(self, batch):
         self.current_step = 'training'
         loss = self.forward(batch)
-        self.log('train/loss', loss, on_epoch=True)
+        self.log('train/loss', loss, on_epoch=True, sync_dist=True)
 
         return loss
 
@@ -65,7 +65,7 @@ class SegFormerLightning(pl.LightningModule):
         self.current_step = 'validation'
         self.current_batch_idx = batch_idx
         loss = self.forward(batch)
-        self.log('val/loss', loss, on_epoch=True)
+        self.log('val/loss', loss, on_epoch=True, sync_dist=True)
 
         return loss
 
@@ -79,7 +79,7 @@ class SegFormerLightning(pl.LightningModule):
             self.log_segmentation_images(inputs, labels, masks)
 
         loss = self.segmentation_loss_fct(logits, labels)
-        self.log('val/segmentation_loss', loss, on_epoch=True)
+        self.log('val/segmentation_loss', loss, on_epoch=True, sync_dist=True)
 
         return loss
 
@@ -99,7 +99,7 @@ class SegFormerLightning(pl.LightningModule):
             self.log_consistency_images(inputs_2, mask_2, '2')
 
         loss = self.consistency_loss_fct(logits_1, mask_2)
-        self.log('val/consistency_loss', loss, on_epoch=True)
+        self.log('val/consistency_loss', loss, on_epoch=True, sync_dist=True)
 
         return loss, logits_1
 
@@ -116,7 +116,7 @@ class SegFormerLightning(pl.LightningModule):
             self.log_sam_images(inputs, consistency_masks, sam_masks)
 
         loss = self.sam_loss_fct(consistency_logits, sam_masks.long())
-        self.log('val/sam_loss', loss, on_epoch=True)
+        self.log('val/sam_loss', loss, on_epoch=True, sync_dist=True)
 
         return loss
 

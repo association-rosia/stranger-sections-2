@@ -104,7 +104,7 @@ def get_trainer(config: Config):
             callbacks=[checkpoint_callback_loss, early_stopping_callback],
             # callbacks=[checkpoint_callback_loss, checkpoint_callback_metric, early_stopping_callback],
             # precision='16-mixed',
-            strategy='ddp_find_unused_parameters_true',
+            # strategy='ddp_find_unused_parameters_true',
             val_check_interval=config.val_check_interval
         )
     else:
