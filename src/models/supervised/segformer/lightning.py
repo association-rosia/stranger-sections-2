@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from transformers import SegformerForSemanticSegmentation
 
 import src.data.collate as spv_collate
-import src.data.supervised.dataset as spv_dataset
+import src.data.supervised.make_dataset as spv_dataset
 from src.utils.cls import Config
 
 

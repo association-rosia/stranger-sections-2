@@ -160,6 +160,18 @@ class SS2ImageProcessor:
         return transforms
 
 
+def make_training_processor(config: Config):
+    return SS2ImageProcessor(config)
+
+
+def make_eval_processor(config: Config):
+    return SS2ImageProcessor(config)
+
+
+def make_inference_processor(config: Config):
+    return SS2ImageProcessor(config)
+
+
 def _debug():
     config = func.load_config('main')
     wandb_config = func.load_config('segformer', 'semi_supervised')

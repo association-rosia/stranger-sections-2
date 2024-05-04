@@ -26,7 +26,6 @@ class SS2SemiSupervisedDataset(Dataset):
 
     def __getitem__(self, idx):
         supervised_input, supervised_image = self.get_supervised_input(idx)
-        print(supervised_image)
         unsupervised_inputs, unsupervised_image = self.get_unsupervised_inputs()
 
         return supervised_input, supervised_image, unsupervised_inputs, unsupervised_image
