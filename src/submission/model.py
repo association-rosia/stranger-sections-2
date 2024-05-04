@@ -1,14 +1,14 @@
-import torch
-from PIL import Image
 import numpy as np
-from typing_extensions import Self
-
 import src.data.supervised.collate as spv_collate
 import src.data.supervised.processor as spv_processor
-from src.models.train_model import load_model
+import torch
+from PIL import Image
+from typing_extensions import Self
+
 from src.data.tiling import Tiler
+from src.models.train_model import load_model
 from src.utils.cls import Config
-import matplotlib.pyplot as plt
+
 
 class SS2InferenceModel(torch.nn.Module):
     def __init__(
@@ -42,7 +42,7 @@ class SS2InferenceModel(torch.nn.Module):
         self = cls(config, model.model, map_location=map_location, tiling=tiling, tile_size=tile_size)
 
         return self
-    
+
     def _get_model(self, base_model: torch.nn.Module):
         base_model = base_model.eval()
         base_model = base_model.to(device=self.map_location)
@@ -69,7 +69,7 @@ class SS2InferenceModel(torch.nn.Module):
             return spv_collate.get_collate_fn_inference(self.config)
         else:
             raise ValueError(f"mode expected 'supervised' but received {self.config.mode}")
-        
+
     def _get_tile_size(self, tile_size):
         if self.tiling:
             if tile_size is None:
@@ -78,9 +78,9 @@ class SS2InferenceModel(torch.nn.Module):
                 tile_size = tile_size
         else:
             tile_size = (self.config.data.size_h, self.config.data.size_w)
-        
+
         return tile_size
-        
+
     def _get_images(self, image: np.ndarray):
         if self.tiling:
             images = self.tiler.tile(image, self.tile_size)
@@ -94,19 +94,19 @@ class SS2InferenceModel(torch.nn.Module):
         if isinstance(image, Image.Image):
             image = np.moveaxis(np.asarray(image), -1, 0)
         images = self._get_images(image)
-        
+
         inputs = self.processor.preprocess(images)
         inputs.to(device=self.map_location)
         pred_masks = self.base_model_forward(inputs)
         pred_masks = [pred_mask.numpy(force=True) for pred_mask in pred_masks]
-        
+
         if self.tiling:
             pred_mask = self.tiler.untile(pred_masks, self.tile_size)
         else:
             pred_mask = pred_masks[0]
-        
+
         pred_mask = pred_mask.argmax(axis=0)
-        
+
         return pred_mask
 
     def _mask2former_forward(self, inputs) -> torch.Tensor:
@@ -115,7 +115,7 @@ class SS2InferenceModel(torch.nn.Module):
         pred_masks = self.processor.huggingface_processor.post_process_semantic_segmentation(outputs)
 
         return pred_masks
-    
+
     def _segformer_forward(self, inputs) -> torch.Tensor:
         outputs = self.model(pixel_values=inputs['pixel_values'])
         resized_logits = torch.nn.functional.interpolate(

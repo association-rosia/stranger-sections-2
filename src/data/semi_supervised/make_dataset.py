@@ -3,8 +3,8 @@ import random
 import torch
 from torch.utils.data import Dataset
 
-from src.data.tiling import Tiler
 from src.data.processor import SS2ImageProcessor, AugmentationMode
+from src.data.tiling import Tiler
 from src.utils import func
 from src.utils.cls import Config
 

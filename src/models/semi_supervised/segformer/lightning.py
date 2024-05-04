@@ -37,7 +37,9 @@ class SegFormerLightning(pl.LightningModule):
         self.labeled_tiles = tiling.build(self.config, labeled=True)
         self.unlabeled_tiles = tiling.build(self.config, labeled=False)
         self.processor = SS2ImageProcessor.get_huggingface_processor(config)
-        self.class_labels = {0: 'Background', 1: 'Inertinite', 2: 'Vitrinite', 3: 'Liptinite'}
+
+        self.current_step = None
+        self.current_batch_idx = None
 
     def forward(self, batch):
         segmentation_input, segmentation_image, consistency_inputs, consistency_image = batch
@@ -49,14 +51,17 @@ class SegFormerLightning(pl.LightningModule):
         return loss
 
     def training_step(self, batch):
+        self.current_step = 'training'
         loss = self.forward(batch)
 
         return loss
 
     def validation_step(self, batch, batch_idx):
+        self.current_step = 'validation'
+        self.current_batch_idx = batch_idx
         loss = self.forward(batch)
 
-        # if batch_idx == 0:
+        # if self.current_step == 'validation' and self.current_batch_idx == 0:
         #     self.log_image(inputs, outputs)
 
         return loss
@@ -92,9 +97,12 @@ class SegFormerLightning(pl.LightningModule):
     def sam_forward(self, inputs, consistency_logits):
         inputs, _ = inputs
         consistency_masks = self.logits_to_masks(consistency_logits)
+        func.display_tensor(consistency_masks[0], 'consistency_masks[0]', is_2d=True)
+
         flatten_inputs, values, idcs = self.create_flatten_inputs(consistency_masks, inputs)
         flatten_outputs = self.sam(**flatten_inputs)
         sam_masks = self.post_process_flatten_outputs(flatten_inputs, flatten_outputs, values, idcs)
+        func.display_tensor(sam_masks[0], 'sam_masks[0]', is_2d=True)
 
         loss = self.sam_loss_fct(consistency_logits, sam_masks.long())
 
@@ -134,7 +142,7 @@ class SegFormerLightning(pl.LightningModule):
             sam_masks.append(sam_mask)
 
         sam_masks = torch.stack(sam_masks)
-        sam_masks = self.reshape_tensor(sam_masks, size=(512, 512), is_3d=True)
+        sam_masks = self.reshape_tensor(sam_masks, size=(self.config.tile_size, self.config.tile_size), is_3d=True)
 
         return sam_masks
 
@@ -243,7 +251,7 @@ class SegFormerLightning(pl.LightningModule):
         for teacher_param, student_param in zip(self.teacher.parameters(), self.student.parameters()):
             teacher_param.data = teacher_momentum * teacher_param.data + (1 - teacher_momentum) * student_param.data
 
-    def log_image(self, inputs, outputs):
+    def log_image_mask(self, inputs, outputs):
         pixel_values = torch.moveaxis(inputs['pixel_values'][0], 0, -1).numpy(force=True)
         outputs = self.processor.post_process_semantic_segmentation(outputs)
         outputs = outputs[0].numpy(force=True)
@@ -254,14 +262,17 @@ class SegFormerLightning(pl.LightningModule):
             'val/prediction': wandb.Image(pixel_values, masks={
                 'predictions': {
                     'mask_data': outputs,
-                    'class_labels': self.class_labels,
+                    'class_labels': self.config.data.class_labels,
                 },
                 'ground_truth': {
                     'mask_data': ground_truth,
-                    'class_labels': self.class_labels,
+                    'class_labels': self.config.data.class_labels,
                 }
             })
         })
+
+    def log_image(self, inputs):
+        return
 
     @staticmethod
     def get_original_mask(masks):

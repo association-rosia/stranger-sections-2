@@ -1,6 +1,6 @@
+import src.data.supervised.processor as spv_processor
 from torch.utils.data import Dataset
 
-import src.data.supervised.processor as spv_processor
 from src.data.tiling import Tiler
 from src.utils import func
 from src.utils.cls import Config
