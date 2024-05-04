@@ -3,7 +3,7 @@ import random
 import torch
 from torch.utils.data import Dataset
 
-from src.data import tiling
+from src.data.tiling import Tiler
 from src.data.processor import SS2ImageProcessor, AugmentationMode
 from src.utils import func
 from src.utils.cls import Config
@@ -106,8 +106,9 @@ def _debug():
     wandb_config = func.load_config('segformer', 'semi_supervised')
     config = Config(config, wandb_config)
 
-    labeled_tiles = tiling.build(labeled=True, size_tile=wandb_config.size_tile)
-    unlabeled_tiles = tiling.build(labeled=False, size_tile=wandb_config.size_tile)
+    tiler = Tiler(config=config)
+    labeled_tiles = tiler.build(labeled=True)
+    unlabeled_tiles = tiler.build(labeled=False)
 
     train_dataset = make_train_dataset(config, labeled_tiles, unlabeled_tiles)
     val_dataset = make_val_dataset(config, labeled_tiles, unlabeled_tiles)
