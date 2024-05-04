@@ -48,8 +48,7 @@ class SS2SemiSupervisedDataset(Dataset):
             apply_huggingface=True
         )
         inputs = self.adjust_shape(inputs)
-        inputs['pixel_values'] = inputs['pixel_values'].to(torch.float16)
-        inputs['labels'] = inputs['labels'].to(torch.int64)
+        inputs['pixel_values'] = inputs['pixel_values'].to(dtype=torch.float16)
 
         return inputs, supervised_image
 
@@ -70,7 +69,7 @@ class SS2SemiSupervisedDataset(Dataset):
             apply_huggingface=True,
         )
         inputs_1 = self.adjust_shape(inputs_1)
-        inputs_1['pixel_values'] = inputs_1['pixel_values'].to(torch.float16)
+        inputs_1['pixel_values'] = inputs_1['pixel_values'].to(dtype=torch.float16)
 
         inputs_2 = self.processor.preprocess(
             image=image,
@@ -78,7 +77,7 @@ class SS2SemiSupervisedDataset(Dataset):
             apply_huggingface=True,
         )
         inputs_2 = self.adjust_shape(inputs_2)
-        inputs_2['pixel_values'] = inputs_2['pixel_values'].to(torch.float16)
+        inputs_2['pixel_values'] = inputs_2['pixel_values'].to(dtype=torch.float16)
 
         return (inputs_1, inputs_2), unsupervised_image
 
