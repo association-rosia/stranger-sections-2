@@ -22,7 +22,7 @@ class Tiler:
 
         return tiles
 
-    def tile(self, image: np.ndarray, tile_size: tuple[int, int] = None) -> list[np.ndarray]:
+    def tile(self, image: np.ndarray, tile_size: int = None) -> list[np.ndarray]:
         tiles = []
         bboxes = self._build_bboxes(tile_size)
 
