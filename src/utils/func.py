@@ -1,5 +1,6 @@
 import os
 
+import matplotlib.pyplot as plt
 import numpy as np
 import wandb
 import wandb.apis.public as wandb_api
@@ -17,7 +18,7 @@ def get_notebooks_path(path: str) -> str:
     return new_path
 
 
-def load_config(yaml_file: str, mode: str = None, loading = 'dict') -> dict | Config:
+def load_config(yaml_file: str, mode: str = None, loading: str = 'dict') -> dict | Config:
     if mode:
         root = os.path.join('configs', mode, f'{yaml_file}.yaml')
     else:
@@ -54,7 +55,7 @@ def get_run(run_id: str) -> wandb_api.Run:
     run = None
 
     if run_id:
-        config = load_config('main', loading='object')
+        config = load_config('main')
 
         api = wandb.Api()
         run = wandb_api.Run(
@@ -73,7 +74,6 @@ def load_unsupervised_image(config, tile: dict) -> np.ndarray:
 
     with open(path, mode='br') as f:
         image = np.array(Image.open(f).convert('RGB')) / 255.0
-        image /= 255
 
     x0, y0, x1, y1 = tile['bbox']
     image = image[x0:x1, y0:y1, :]
@@ -83,7 +83,6 @@ def load_unsupervised_image(config, tile: dict) -> np.ndarray:
 
 def load_supervised_image(config, tile: dict) -> np.ndarray:
     path = os.path.join(config.path.data.raw.train.labeled, f'{tile["image"]}.JPG')
-    path = get_notebooks_path(path)
 
     with open(path, mode='br') as f:
         image = np.array(Image.open(f).convert('RGB')) / 255.0
@@ -120,3 +119,21 @@ def train_val_split_tiles(config: Config, tiles: list):
     val_tiles = [tile for tile in tiles if tile['image'] in val_images]
 
     return train_tiles, val_tiles
+
+
+def display_tensor(tensor, name, is_2d=False):
+    os.makedirs('logs', exist_ok=True)
+    os.makedirs(os.path.join('logs', 'plots'), exist_ok=True)
+
+    if is_2d:
+        tensor = tensor.unsqueeze(dim=0)
+
+    plt.imshow(tensor.permute(1, 2, 0).float().cpu())
+    plt.savefig(os.path.join('logs', 'plots', name))
+
+
+def display_array(array, name):
+    os.makedirs('logs', exist_ok=True)
+    os.makedirs(os.path.join('logs', 'plots'), exist_ok=True)
+    plt.imshow(array)
+    plt.savefig(os.path.join('logs', 'plots', name))

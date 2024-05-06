@@ -13,7 +13,6 @@ class Tiler:
         self.bboxes = self._build_bboxes(self.config.tile_size)
 
     def build(self, labeled: bool = True, tile_size: int = None):
-        tiles = []
         bboxes = self._build_bboxes(tile_size)
 
         if labeled:
@@ -22,16 +21,16 @@ class Tiler:
             tiles = self._get_unlabeled_tiles(bboxes)
 
         return tiles
-    
-    def tile(self, image: np.ndarray, tile_size: tuple[int, int] = None) -> list[np.ndarray]:
+
+    def tile(self, image: np.ndarray, tile_size: int = None) -> list[np.ndarray]:
         tiles = []
         bboxes = self._build_bboxes(tile_size)
-        
+
         for x0, y0, x1, y1 in bboxes:
             tiles.append(image[:, x0:x1, y0:y1])
-        
+
         return tiles
-    
+
     def untile(self, tiles: list[np.ndarray], tile_size: tuple[int, int] = None) -> np.ndarray:
         bboxes = self._build_bboxes(tile_size)
         num_labels = self.config.num_labels
@@ -41,17 +40,16 @@ class Tiler:
 
         for (x0, y0, x1, y1), tile in zip(bboxes, tiles):
             image[:, x0:x1, y0:y1] += tile
-        
+
         return image
 
     def _build_bboxes(self, tile_size: int = None):
         if tile_size is None:
-            tile_size = self.config.tile_size
             bboxes = self.bboxes
         else:
             num_h_tiles, overlap_h, num_w_tiles, overlap_w = self._get_num_tiles(tile_size)
             bboxes = self._get_coords_tile(tile_size, num_h_tiles, overlap_h, num_w_tiles, overlap_w)
-        
+
         return bboxes
 
     def _get_labeled_tiles(self, bboxes: list):
@@ -74,7 +72,6 @@ class Tiler:
 
         return tiles
 
-
     def _get_unlabeled_tiles(self, bboxes: list):
         tiles = []
         path_images = self.config.path.data.raw.train.unlabeled
@@ -90,7 +87,6 @@ class Tiler:
 
         return tiles
 
-
     def _get_num_tiles(self, tile_size: int):
         size_h = self.config.data.size_h
         size_w = self.config.data.size_w
@@ -104,9 +100,8 @@ class Tiler:
 
         return num_h_tiles, overlap_h, num_w_tiles, overlap_w
 
-
     def _get_coords_tile(self, tile_size: int, num_h_tiles: int, overlap_h: int, num_w_tiles: int,
-                        overlap_w: int):
+                         overlap_w: int):
         size_h = self.config.data.size_h
         size_w = self.config.data.size_w
         coords_tile = []

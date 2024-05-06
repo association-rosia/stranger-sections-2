@@ -1,9 +1,10 @@
 import random
 
+import torch
 from torch.utils.data import Dataset
 
-from src.data.tiling import Tiler
 from src.data.processor import SS2ImageProcessor, AugmentationMode
+from src.data.tiling import Tiler
 from src.utils import func
 from src.utils.cls import Config
 
@@ -24,47 +25,61 @@ class SS2SemiSupervisedDataset(Dataset):
         return len(self.labeled_tiles)
 
     def __getitem__(self, idx):
-        supervised_input = self.get_supervised_input(idx)
-        unsupervised_inputs = self.get_unsupervised_inputs()
+        supervised_input, supervised_image = self.get_supervised_input(idx)
+        unsupervised_inputs, unsupervised_image = self.get_unsupervised_inputs()
 
-        return supervised_input, unsupervised_inputs
+        return supervised_input, supervised_image, unsupervised_inputs, unsupervised_image
 
-    def get_supervised_input(self, idx):
-        image = func.load_supervised_image(self.config, self.labeled_tiles[idx])
-        label = func.load_label(self.config, self.labeled_tiles[idx])
-
-        inputs = self.processor.preprocess(
-            image=image,
-            mask=label,
-            augmentation_mode=AugmentationMode.BOTH,
-            apply_huggingface=True
-        )
+    @staticmethod
+    def adjust_shape(inputs):
+        inputs = {k: v.squeeze() if isinstance(v, torch.Tensor) else v[0] for k, v in inputs.items()}
 
         return inputs
 
+    def get_supervised_input(self, idx):
+        images = func.load_supervised_image(self.config, self.labeled_tiles[idx])
+        labels = func.load_label(self.config, self.labeled_tiles[idx])
+        supervised_image = self.labeled_tiles[idx]
+
+        inputs = self.processor.preprocess(
+            images=images,
+            labels=labels,
+            augmentation_mode=AugmentationMode.BOTH,
+            apply_huggingface=True
+        )
+        inputs = self.adjust_shape(inputs)
+        inputs['pixel_values'] = inputs['pixel_values'].to(dtype=torch.float16)
+
+        return inputs, supervised_image
+
     def get_unsupervised_inputs(self):
         idx = random.randint(0, len(self.unlabeled_tiles) - 1)
-        image = func.load_unsupervised_image(self.config, self.unlabeled_tiles[idx])
+        images = func.load_unsupervised_image(self.config, self.unlabeled_tiles[idx])
+        unsupervised_image = self.unlabeled_tiles[idx]
 
-        image = self.processor.preprocess(
-            image=image,
+        images = self.processor.preprocess(
+            images=images,
             augmentation_mode=AugmentationMode.SPATIAL,
             apply_huggingface=False,
         )
 
-        inputs1 = self.processor.preprocess(
-            image=image,
+        inputs_1 = self.processor.preprocess(
+            images=images,
             augmentation_mode=AugmentationMode.COLORIMETRIC,
             apply_huggingface=True,
         )
+        inputs_1 = self.adjust_shape(inputs_1)
+        inputs_1['pixel_values'] = inputs_1['pixel_values'].to(dtype=torch.float16)
 
-        inputs2 = self.processor.preprocess(
-            image=image,
+        inputs_2 = self.processor.preprocess(
+            images=images,
             augmentation_mode=AugmentationMode.COLORIMETRIC,
             apply_huggingface=True,
         )
+        inputs_2 = self.adjust_shape(inputs_2)
+        inputs_2['pixel_values'] = inputs_2['pixel_values'].to(dtype=torch.float16)
 
-        return inputs1, inputs2
+        return (inputs_1, inputs_2), unsupervised_image
 
 
 def make_train_dataset(config: Config, labeled_tiles: list, unlabeled_tiles: list) -> SS2SemiSupervisedDataset:

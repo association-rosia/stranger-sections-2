@@ -5,6 +5,7 @@ model_name: 'mask2former'
 model_id: 'facebook/mask2former-swin-large-cityscapes-semantic'
 checkpoint:
 
+do_normalize: true
 size_tile: 384
 contrast_factor:
 tile_size: 384
