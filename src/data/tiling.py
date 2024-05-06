@@ -10,10 +10,10 @@ from src.utils.cls import Config
 class Tiler:
     def __init__(self, config: Config) -> None:
         self.config = config
-        self.bboxes = self._build_bboxes()
+        self.bboxes = self._build_bboxes(self.config.tile_size)
 
-    def build(self, labeled: bool = True):
-        bboxes = self._build_bboxes()
+    def build(self, labeled: bool = True, tile_size: int = None):
+        bboxes = self._build_bboxes(tile_size)
 
         if labeled:
             tiles = self._get_labeled_tiles(bboxes)
@@ -22,17 +22,17 @@ class Tiler:
 
         return tiles
 
-    def tile(self, image: np.ndarray) -> list[np.ndarray]:
+    def tile(self, image: np.ndarray, tile_size: tuple[int, int] = None) -> list[np.ndarray]:
         tiles = []
-        bboxes = self._build_bboxes()
+        bboxes = self._build_bboxes(tile_size)
 
         for x0, y0, x1, y1 in bboxes:
             tiles.append(image[:, x0:x1, y0:y1])
 
         return tiles
 
-    def untile(self, tiles: list[np.ndarray]) -> np.ndarray:
-        bboxes = self._build_bboxes()
+    def untile(self, tiles: list[np.ndarray], tile_size: tuple[int, int] = None) -> np.ndarray:
+        bboxes = self._build_bboxes(tile_size)
         num_labels = self.config.num_labels
         size_h = self.config.data.size_h
         size_w = self.config.data.size_w
@@ -43,13 +43,12 @@ class Tiler:
 
         return image
 
-    def _build_bboxes(self):
-        if self.config.tile_size is None:
-            self.config.tile_size = self.config.self.config.tile_size
+    def _build_bboxes(self, tile_size: int = None):
+        if tile_size is None:
             bboxes = self.bboxes
         else:
-            num_h_tiles, overlap_h, num_w_tiles, overlap_w = self._get_num_tiles()
-            bboxes = self._get_coords_tile(num_h_tiles, overlap_h, num_w_tiles, overlap_w)
+            num_h_tiles, overlap_h, num_w_tiles, overlap_w = self._get_num_tiles(tile_size)
+            bboxes = self._get_coords_tile(tile_size, num_h_tiles, overlap_h, num_w_tiles, overlap_w)
 
         return bboxes
 
@@ -88,22 +87,20 @@ class Tiler:
 
         return tiles
 
-    def _get_num_tiles(self):
+    def _get_num_tiles(self, tile_size: int):
         size_h = self.config.data.size_h
         size_w = self.config.data.size_w
-        num_h_tiles = self.config.data.size_h / self.config.tile_size
-        num_w_tiles = self.config.data.size_w / self.config.tile_size
+        num_h_tiles = self.config.data.size_h / tile_size
+        num_w_tiles = self.config.data.size_w / tile_size
 
-        overlap_h = math.ceil(
-            math.ceil(self.config.tile_size * math.ceil(num_h_tiles) - size_h) / math.floor(num_h_tiles))
-        overlap_w = math.ceil(
-            math.ceil(self.config.tile_size * math.ceil(num_w_tiles) - size_w) / math.floor(num_w_tiles))
+        overlap_h = math.ceil(math.ceil(tile_size * math.ceil(num_h_tiles) - size_h) / math.floor(num_h_tiles))
+        overlap_w = math.ceil(math.ceil(tile_size * math.ceil(num_w_tiles) - size_w) / math.floor(num_w_tiles))
         num_h_tiles = math.ceil(num_h_tiles)
         num_w_tiles = math.ceil(num_w_tiles)
 
         return num_h_tiles, overlap_h, num_w_tiles, overlap_w
 
-    def _get_coords_tile(self, num_h_tiles: int, overlap_h: int, num_w_tiles: int,
+    def _get_coords_tile(self, tile_size: int, num_h_tiles: int, overlap_h: int, num_w_tiles: int,
                          overlap_w: int):
         size_h = self.config.data.size_h
         size_w = self.config.data.size_w
@@ -111,10 +108,10 @@ class Tiler:
 
         for i in range(num_h_tiles):
             for j in range(num_w_tiles):
-                x0 = max(0, i * (self.config.tile_size - overlap_h))
-                y0 = max(0, j * (self.config.tile_size - overlap_w))
-                x1 = min(size_h, x0 + self.config.tile_size)
-                y1 = min(size_w, y0 + self.config.tile_size)
+                x0 = max(0, i * (tile_size - overlap_h))
+                y0 = max(0, j * (tile_size - overlap_w))
+                x1 = min(size_h, x0 + tile_size)
+                y1 = min(size_w, y0 + tile_size)
 
                 if x1 + 1 == size_h:
                     x0 += 1

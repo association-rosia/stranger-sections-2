@@ -1,144 +1,205 @@
-import math
-import os
+import os.path
+from enum import Enum
+from typing import overload
 
 import numpy as np
+import torch
+import torchvision.transforms.v2 as tv2T
+from PIL import Image
+from torchvision import tv_tensors
+from transformers import Mask2FormerImageProcessor, SegformerImageProcessor
 
 from src.utils import func
 from src.utils.cls import Config
 
 
-class Tiler:
-    def __init__(self, config: Config) -> None:
+class AugmentationMode(Enum):
+    NONE = -1
+    SPATIAL = 0
+    COLORIMETRIC = 1
+    BOTH = 2
+
+
+class SS2ImageProcessor:
+    def __init__(self, config: Config, augmentation_mode: AugmentationMode = AugmentationMode.NONE) -> None:
         self.config = config
-        self.bboxes = self._build_bboxes(self.config.tile_size)
+        self.augmentation_mode = augmentation_mode
+        self.huggingface_processor = self.get_huggingface_processor(config)
+        self.transforms = self._get_transforms(self.augmentation_mode)
 
-    def build(self, labeled: bool = True, tile_size: int = None):
-        bboxes = self._build_bboxes(tile_size)
+    def preprocess(self,
+                   images: np.ndarray | list[np.ndarray],
+                   labels: np.ndarray | list[np.ndarray] = None,
+                   augmentation_mode: AugmentationMode = None,
+                   apply_huggingface: bool = True
+                   ):
 
-        if labeled:
-            tiles = self._get_labeled_tiles(bboxes)
+        if augmentation_mode is None:
+            transforms = self.transforms
         else:
-            tiles = self._get_unlabeled_tiles(bboxes)
+            transforms = self._get_transforms(augmentation_mode)
 
-        return tiles
+        images = self._numpy_to_list(images)
+        labels = self._numpy_to_list(labels)
 
-    def tile(self, image: np.ndarray, tile_size: tuple[int, int] = None) -> list[np.ndarray]:
-        tiles = []
-        bboxes = self._build_bboxes(tile_size)
-
-        for x0, y0, x1, y1 in bboxes:
-            tiles.append(image[:, x0:x1, y0:y1])
-
-        return tiles
-
-    def untile(self, tiles: list[np.ndarray], tile_size: tuple[int, int] = None) -> np.ndarray:
-        bboxes = self._build_bboxes(tile_size)
-        num_labels = self.config.num_labels
-        size_h = self.config.data.size_h
-        size_w = self.config.data.size_w
-        image = np.zeros((num_labels, size_h, size_w), np.float16)
-
-        for (x0, y0, x1, y1), tile in zip(bboxes, tiles):
-            image[:, x0:x1, y0:y1] += tile
-
-        return image
-
-    def _build_bboxes(self, tile_size: int = None):
-        if tile_size is None:
-            bboxes = self.bboxes
+        if labels is not None:
+            inputs, labels = self._preprocess_images_masks(images, labels, transforms)
         else:
-            num_h_tiles, overlap_h, num_w_tiles, overlap_w = self._get_num_tiles(tile_size)
-            bboxes = self._get_coords_tile(tile_size, num_h_tiles, overlap_h, num_w_tiles, overlap_w)
+            inputs = self._preprocess_images_only(images, transforms)
 
-        return bboxes
+        if apply_huggingface:
+            inputs = self.huggingface_processor.preprocess(inputs, segmentation_maps=labels, return_tensors='pt')
 
-    def _get_labeled_tiles(self, bboxes: list):
-        tiles = []
-        path_labels = self.config.path.data.raw.train.labels
-        path_labels = func.get_notebooks_path(path_labels)
+        return inputs
 
-        npy_files = [file for file in os.listdir(path_labels) if file.endswith('.npy')]
+    @staticmethod
+    def _numpy_to_list(array):
+        if not isinstance(array, list) and array is not None:
+            array = [array]
 
-        for npy_file in npy_files:
-            npy_data = np.load(os.path.join(path_labels, npy_file))
-            image = npy_file.split('_')[0]
+        return array
 
-            for bbox in bboxes:
-                x0, y0, x1, y1 = bbox
-                cropped_npy_data = npy_data[x0:x1, y0:y1]
+    @staticmethod
+    def _preprocess_images_only(images, transforms):
+        return [transforms(tv_tensors.Image(image)) for image in images]
 
-                if len(np.unique(cropped_npy_data).tolist()) > 1:
-                    tiles.append({'image': image, 'bbox': bbox})
+    @staticmethod
+    def _preprocess_images_masks(images, masks, transforms):
+        images_processed = []
+        masks_processed = []
 
-        return tiles
+        for image, mask in zip(images, masks):
+            image_processed, mask_processed = transforms(
+                tv_tensors.Image(image),
+                tv_tensors.Mask(mask)
+            )
 
-    def _get_unlabeled_tiles(self, bboxes: list):
-        tiles = []
-        path_images = self.config.path.data.raw.train.unlabeled
-        path_images = func.get_notebooks_path(path_images)
+            images_processed.append(image_processed)
+            masks_processed.append(mask_processed)
 
-        files = [file for file in os.listdir(path_images) if file.endswith('.jpg')]
+        return images_processed, masks_processed
 
-        for file in files:
-            image = file.split('.')[0]
+    @staticmethod
+    def get_huggingface_processor(config: Config):
+        if config.model_name == 'mask2former':
+            processor = Mask2FormerImageProcessor.from_pretrained(
+                pretrained_model_name_or_path=config.model_id,
+                do_rescale=False,
+                do_normalize=config.do_normalize,
+                reduce_labels=True,
+                do_pad=False,
+                do_resize=True,
+                image_mean=config.data.mean,
+                image_std=config.data.std,
+                num_labels=config.num_labels,
+            )
+        elif config.model_name == 'segformer':
+            processor = SegformerImageProcessor.from_pretrained(
+                pretrained_model_name_or_path=config.model_id,
+                do_rescale=False,
+                do_normalize=config.do_normalize,
+                do_reduce_labels=False,
+                do_pad=False,
+                do_resize=True,
+                image_mean=config.data.mean,
+                image_std=config.data.std,
+                num_labels=config.num_labels,
+            )
+        else:
+            raise ValueError(f"Unknown model_name: {config.model_name}")
 
-            for bbox in bboxes:
-                tiles.append({'image': image, 'bbox': bbox})
+        return processor
 
-        return tiles
+    def set_augmentation_mode(self, augmentation_mode: AugmentationMode):
+        self.augmentation_mode = augmentation_mode
+        self.transforms = self._get_transforms()
 
-    def _get_num_tiles(self, tile_size: int):
-        size_h = self.config.data.size_h
-        size_w = self.config.data.size_w
-        num_h_tiles = self.config.data.size_h / tile_size
-        num_w_tiles = self.config.data.size_w / tile_size
+    @staticmethod
+    def _get_none_transforms():
+        transforms = [
+            tv2T.Lambda(lambda x: x)
+        ]
 
-        overlap_h = math.ceil(math.ceil(tile_size * math.ceil(num_h_tiles) - size_h) / math.floor(num_h_tiles))
-        overlap_w = math.ceil(math.ceil(tile_size * math.ceil(num_w_tiles) - size_w) / math.floor(num_w_tiles))
-        num_h_tiles = math.ceil(num_h_tiles)
-        num_w_tiles = math.ceil(num_w_tiles)
+        return transforms
 
-        return num_h_tiles, overlap_h, num_w_tiles, overlap_w
+    @staticmethod
+    def _get_spatial_transforms():
+        transforms = [
+            tv2T.Lambda(lambda x: x)
+            # tv2T.Lambda(
+            #     partial(tv2F.adjust_contrast, contrast_factor=self.config.contrast_factor']),
+            #     tv_tensors.Image
+            # ),
+        ]
 
-    def _get_coords_tile(self, tile_size: int, num_h_tiles: int, overlap_h: int, num_w_tiles: int,
-                         overlap_w: int):
-        size_h = self.config.data.size_h
-        size_w = self.config.data.size_w
-        coords_tile = []
+        return transforms
 
-        for i in range(num_h_tiles):
-            for j in range(num_w_tiles):
-                x0 = max(0, i * (tile_size - overlap_h))
-                y0 = max(0, j * (tile_size - overlap_w))
-                x1 = min(size_h, x0 + tile_size)
-                y1 = min(size_w, y0 + tile_size)
+    @staticmethod
+    def _get_colorimetric_transforms():
+        transforms = [
+            tv2T.Lambda(lambda x: x)
+            # tv2T.Lambda(
+            #     partial(tv2F.adjust_contrast, contrast_factor=self.config.contrast_factor']),
+            #     tv_tensors.Image
+            # ),
+        ]
 
-                if x1 + 1 == size_h:
-                    x0 += 1
-                    x1 += 1
+        return transforms
 
-                if y1 + 1 == size_w:
-                    y0 += 1
-                    y1 += 1
+    def _get_both_transforms(self):
+        spatial_transforms = self._get_spatial_transforms()
+        colorimetric_transforms = self._get_colorimetric_transforms()
 
-                coords_tile.append((x0, y0, x1, y1))
+        return [*spatial_transforms, *colorimetric_transforms]
 
-        return coords_tile
+    def _get_transforms(self, augmentation_mode: AugmentationMode) -> tv2T.Compose:
+        transforms = [tv2T.ToDtype(dtype=torch.float32, scale=True)]
+
+        if augmentation_mode == AugmentationMode.NONE:
+            transforms.extend(self._get_none_transforms())
+        elif augmentation_mode == AugmentationMode.SPATIAL:
+            transforms.extend(self._get_spatial_transforms())
+        elif augmentation_mode == AugmentationMode.COLORIMETRIC:
+            transforms.extend(self._get_colorimetric_transforms())
+        elif augmentation_mode == AugmentationMode.BOTH:
+            transforms.extend(self._get_both_transforms())
+        else:
+            raise ValueError(f"Unknown augmentation_mode: {self.augmentation_mode}")
+
+        return tv2T.Compose(transforms)
+
+
+def make_training_processor(config: Config):
+    return SS2ImageProcessor(config, AugmentationMode.NONE)
+
+
+def make_eval_processor(config: Config):
+    return SS2ImageProcessor(config, AugmentationMode.NONE)
+
+
+def make_inference_processor(config: Config):
+    return SS2ImageProcessor(config, AugmentationMode.NONE)
 
 
 def _debug():
-    from PIL import Image
-    main_config = func.load_config('main', loading='dict')
-    wandb_config = func.load_config('segformer', 'supervised', loading='dict')
-    config = Config(main_config, wandb_config)
-    tiler = Tiler(config)
-    tiles = tiler.build(labeled=False)
-    image = Image.open('data/raw/train/unlabeled/0a6odx.jpg')
-    image = np.moveaxis(np.asarray(image), -1, 0)
-    tiles = tiler.tile(image)
+    config = func.load_config('main')
+    wandb_config = func.load_config('mask2former', 'supervised')
+    config = Config(config, wandb_config)
 
-    return
+    train_preprocessor = make_training_processor(config)
+    eval_preprocessor = make_eval_processor(config)
+    inf_preprocessor = make_inference_processor(config)
+
+    path_img = os.path.join(config.path.data.raw.train.labeled, '17gw5j.JPG')
+    img = np.array(Image.open(path_img).convert('RGB'))
+
+    path_mask = os.path.join(config.path.data.raw.train.labels, '17gw5j_gt.npy')
+    mask = np.load(path_mask)
+
+    t_output = train_preprocessor.preprocess(img, mask)
+    e_output = eval_preprocessor.preprocess(img, mask)
+    i_output = inf_preprocessor.preprocess(img)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     _debug()

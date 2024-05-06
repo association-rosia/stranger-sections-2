@@ -74,8 +74,8 @@ class SegformerLightning(pl.LightningModule):
     def configure_criterion(self):
         class_labels = self.config.data.class_labels.__dict__
         class_ordered = sorted([int(k) for k in class_labels.keys()])
-        class_weights = self.config.data.class_weights.__dict__
-        weight = torch.Tensor([class_weights[class_labels[str(i)]] for i in class_ordered])
+        label_weights = self.config.data.label_weights.__dict__
+        weight = torch.Tensor([label_weights[class_labels[str(i)]] for i in class_ordered])
 
         return torch.nn.CrossEntropyLoss(weight=weight)
 
