@@ -94,8 +94,10 @@ class Tiler:
         num_h_tiles = self.config.data.size_h / self.config.tile_size
         num_w_tiles = self.config.data.size_w / self.config.tile_size
 
-        overlap_h = math.ceil(math.ceil(self.config.tile_size * math.ceil(num_h_tiles) - size_h) / math.floor(num_h_tiles))
-        overlap_w = math.ceil(math.ceil(self.config.tile_size * math.ceil(num_w_tiles) - size_w) / math.floor(num_w_tiles))
+        overlap_h = math.ceil(
+            math.ceil(self.config.tile_size * math.ceil(num_h_tiles) - size_h) / math.floor(num_h_tiles))
+        overlap_w = math.ceil(
+            math.ceil(self.config.tile_size * math.ceil(num_w_tiles) - size_w) / math.floor(num_w_tiles))
         num_h_tiles = math.ceil(num_h_tiles)
         num_w_tiles = math.ceil(num_w_tiles)
 

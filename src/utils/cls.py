@@ -13,6 +13,9 @@ class Config:
 
             setattr(self, str(key), value)
 
+    def to_dict(self):
+        return {int(k): v for k, v in self.__dict__.items()}
+
     def __repr__(self):
         return f'{self.__class__.__name__}({self.config})'
 

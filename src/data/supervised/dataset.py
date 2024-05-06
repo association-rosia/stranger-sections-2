@@ -1,6 +1,6 @@
-from src.data.processor import SS2ImageProcessor, make_training_processor, make_eval_processor
 from torch.utils.data import Dataset
 
+from src.data.processor import SS2ImageProcessor, make_training_processor, make_eval_processor
 from src.data.tiling import Tiler
 from src.utils import func
 from src.utils.cls import Config

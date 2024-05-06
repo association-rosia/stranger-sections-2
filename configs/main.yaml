@@ -22,3 +22,4 @@ data:
   mean: [ 0.4175, 0.3497, 0.2607 ]
   std: [ 0.2044, 0.1909, 0.1867 ]
   class_labels: { 0: 'Background', 1: 'Inertinite', 2: 'Vitrinite', 3: 'Liptinite' }
+  class_weights: { 'Background': 0.035, 'Inertinite': 1.373, 'Vitrinite': 0.376, 'Liptinite': 2.216 }

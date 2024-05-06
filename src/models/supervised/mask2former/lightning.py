@@ -1,6 +1,7 @@
 import os
 
 import pytorch_lightning as pl
+import src.data.supervised.dataset as spv_dataset
 import torch
 import wandb
 from torch.optim import AdamW
@@ -9,7 +10,6 @@ from torch.utils.data import DataLoader
 from transformers import Mask2FormerForUniversalSegmentation
 
 import src.data.collate as spv_collate
-import src.data.supervised.make_dataset as spv_dataset
 from src.data.processor import SS2ImageProcessor
 from src.utils import func
 from src.utils.cls import Config

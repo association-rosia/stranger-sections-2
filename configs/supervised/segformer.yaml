@@ -5,10 +5,10 @@ model_name: 'segformer'
 model_id: 'nvidia/segformer-b0-finetuned-ade-512-512'
 checkpoint:
 
+do_normalize: true
 contrast_factor:
 tile_size: 512
 num_labels: 4
-label_weights: { 'Background': 0.035, 'Inertinite': 1.373, 'Vitrinite': 0.376, 'Liptinite': 2.216 }
 random_state: 42
 
 devices: [ 0 ]

@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from transformers import SegformerForSemanticSegmentation
 
 import src.data.collate as spv_collate
-import src.data.supervised.make_dataset as spv_dataset
+import src.data.supervised.dataset as spv_dataset
 from src.utils.cls import Config
 
 
@@ -74,8 +74,8 @@ class SegformerLightning(pl.LightningModule):
     def configure_criterion(self):
         class_labels = self.config.data.class_labels.__dict__
         class_ordered = sorted([int(k) for k in class_labels.keys()])
-        label_weights = self.config.label_weights.__dict__
-        weight = torch.Tensor([label_weights[class_labels[str(i)]] for i in class_ordered])
+        class_weights = self.config.data.class_weights.__dict__
+        weight = torch.Tensor([class_weights[class_labels[str(i)]] for i in class_ordered])
 
         return torch.nn.CrossEntropyLoss(weight=weight)
 

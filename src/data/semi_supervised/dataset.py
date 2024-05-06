@@ -37,13 +37,13 @@ class SS2SemiSupervisedDataset(Dataset):
         return inputs
 
     def get_supervised_input(self, idx):
-        image = func.load_supervised_image(self.config, self.labeled_tiles[idx])
-        label = func.load_label(self.config, self.labeled_tiles[idx])
+        images = func.load_supervised_image(self.config, self.labeled_tiles[idx])
+        labels = func.load_label(self.config, self.labeled_tiles[idx])
         supervised_image = self.labeled_tiles[idx]
 
         inputs = self.processor.preprocess(
-            image=image,
-            mask=label,
+            images=images,
+            labels=labels,
             augmentation_mode=AugmentationMode.BOTH,
             apply_huggingface=True
         )
@@ -54,17 +54,17 @@ class SS2SemiSupervisedDataset(Dataset):
 
     def get_unsupervised_inputs(self):
         idx = random.randint(0, len(self.unlabeled_tiles) - 1)
-        image = func.load_unsupervised_image(self.config, self.unlabeled_tiles[idx])
+        images = func.load_unsupervised_image(self.config, self.unlabeled_tiles[idx])
         unsupervised_image = self.unlabeled_tiles[idx]
 
-        image = self.processor.preprocess(
-            image=image,
+        images = self.processor.preprocess(
+            images=images,
             augmentation_mode=AugmentationMode.SPATIAL,
             apply_huggingface=False,
         )
 
         inputs_1 = self.processor.preprocess(
-            image=image,
+            images=images,
             augmentation_mode=AugmentationMode.COLORIMETRIC,
             apply_huggingface=True,
         )
@@ -72,7 +72,7 @@ class SS2SemiSupervisedDataset(Dataset):
         inputs_1['pixel_values'] = inputs_1['pixel_values'].to(dtype=torch.float16)
 
         inputs_2 = self.processor.preprocess(
-            image=image,
+            images=images,
             augmentation_mode=AugmentationMode.COLORIMETRIC,
             apply_huggingface=True,
         )

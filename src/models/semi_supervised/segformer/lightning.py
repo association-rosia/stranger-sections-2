@@ -3,6 +3,7 @@ import os
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
+import torchmetrics as tm
 import wandb
 from torch import nn
 from torch.optim import AdamW
@@ -10,11 +11,11 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 from transformers import SegformerForSemanticSegmentation, SamModel, SamImageProcessor
 
-import src.data.semi_supervised.make_dataset as ssp_dataset
+import src.data.semi_supervised.dataset as ssp_dataset
 from src.data.processor import SS2ImageProcessor
+from src.data.tiling import Tiler
 from src.utils import func
 from src.utils.cls import Config
-from src.data.tiling import Tiler
 
 torch.set_float32_matmul_precision('medium')
 
@@ -23,24 +24,23 @@ class SegFormerLightning(pl.LightningModule):
     def __init__(self, config: Config):
         super(SegFormerLightning, self).__init__()
         self.config = config
+        self.class_labels = self.config.data.class_labels.to_dict()
 
         tiler = Tiler(config)
         self.labeled_tiles = tiler.build(labeled=True)
         self.unlabeled_tiles = tiler.build(labeled=False)
         self.processor = SS2ImageProcessor.get_huggingface_processor(config)
 
-        self.class_labels = self.config.data.class_labels.__dict__
-        self.class_labels = {int(k): v for k, v in self.class_labels.items()}
-
         self.student = load_student_model(self.config)
         self.teacher = load_teacher_model(self.config)
         self.sam, self.sam_processor = load_sam(self.config)
 
-        self.segmentation_loss_fct = nn.CrossEntropyLoss()
+        self.segmentation_loss_fct = self.configure_criterion()
         self.consistency_loss_fct = nn.CrossEntropyLoss()
         self.sam_loss_fct = nn.CrossEntropyLoss()
         self.delta_c = 1
         self.delta_s = 1
+        self.metrics = self.configure_metrics()
 
         self.current_step = None
         self.current_batch_idx = None
@@ -69,14 +69,60 @@ class SegFormerLightning(pl.LightningModule):
 
         return loss
 
+    def on_validation_epoch_end(self):
+        metrics = self.metrics.compute()
+        self.log_dict(metrics, on_epoch=True, sync_dist=True)
+        self.metrics.reset()
+
+    def configure_optimizers(self):
+        optimizer = AdamW(params=self.student.parameters(), lr=self.config.lr)
+
+        scheduler = {
+            'scheduler': ReduceLROnPlateau(
+                optimizer,
+                mode='min',
+                factor=self.config.reduce_lr_on_plateau_factor,
+                patience=self.config.reduce_lr_on_plateau_patience,
+                verbose=True
+            ),
+            'monitor': 'val/loss',
+            'interval': 'epoch',
+            'frequency': 1
+        }
+
+        return [optimizer], [scheduler]
+
+    def configure_criterion(self):
+        class_labels = self.config.data.class_labels.__dict__
+        class_ordered = sorted([int(k) for k in class_labels.keys()])
+        class_weights = self.config.data.class_weights.__dict__
+        weight = torch.Tensor([class_weights[class_labels[str(i)]] for i in class_ordered])
+
+        return nn.CrossEntropyLoss(weight=weight)
+
+    def configure_metrics(self):
+        num_labels = self.config.num_labels
+
+        metrics = tm.MetricCollection({
+            'val/dice-macro': tm.Dice(num_classes=num_labels, average='macro'),
+            'val/dice-micro': tm.Dice(num_classes=num_labels, average='micro'),
+            'val/iou-macro': tm.JaccardIndex(task='multiclass', num_classes=num_labels, average='macro'),
+            'val/iou-micro': tm.JaccardIndex(task='multiclass', num_classes=num_labels, average='micro'),
+        })
+
+        return metrics
+
     def segmentation_forward(self, inputs):
         labels = self.reshape_labels(inputs)
         outputs = self.student(**inputs)
         logits = self.reshape_outputs(inputs, outputs)
 
-        if self.current_step == 'validation' and self.current_batch_idx == 0:
+        if self.current_step == 'validation':
             masks = self.reshape_outputs(inputs, outputs, return_mask=True)
-            self.log_segmentation_images(inputs, labels, masks)
+            self.metrics.update(masks, labels)
+
+            if self.current_batch_idx == 0:
+                self.log_segmentation_images(inputs, labels, masks)
 
         loss = self.segmentation_loss_fct(logits, labels)
         self.log('val/segmentation_loss', loss, on_epoch=True, sync_dist=True)
@@ -334,24 +380,6 @@ class SegFormerLightning(pl.LightningModule):
 
         return output_mask
 
-    def configure_optimizers(self):
-        optimizer = AdamW(params=self.student.parameters(), lr=self.config.lr)
-
-        scheduler = {
-            'scheduler': ReduceLROnPlateau(
-                optimizer,
-                mode='min',
-                factor=self.config.reduce_lr_on_plateau_factor,
-                patience=self.config.reduce_lr_on_plateau_patience,
-                verbose=True
-            ),
-            'monitor': 'val/loss',
-            'interval': 'epoch',
-            'frequency': 1
-        }
-
-        return [optimizer], [scheduler]
-
     def train_dataloader(self):
         return DataLoader(
             dataset=ssp_dataset.make_train_dataset(self.config, self.labeled_tiles, self.unlabeled_tiles),
@@ -377,8 +405,7 @@ def load_student_model(config: Config):
     model = SegformerForSemanticSegmentation.from_pretrained(
         pretrained_model_name_or_path=config.model_id,
         num_labels=config.num_labels,
-        ignore_mismatched_sizes=True,
-        torch_dtype=torch.float16
+        ignore_mismatched_sizes=True
     )
 
     return model
@@ -394,7 +421,9 @@ def load_teacher_model(config: Config):
 
 
 def load_sam(config: Config):
-    model = SamModel.from_pretrained(config.sam_id, torch_dtype=torch.float16)
+    model = SamModel.from_pretrained(
+        config.sam_id
+    )
 
     processor = SamImageProcessor.from_pretrained(
         config.sam_id,
