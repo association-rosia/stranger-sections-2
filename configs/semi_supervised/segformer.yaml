@@ -1,4 +1,4 @@
-dry: false
+dry: true
 
 mode: 'semi_supervised'
 model_name: 'segformer'
@@ -12,7 +12,7 @@ contrast_factor:
 num_labels: 4
 random_state: 42
 
-devices: [ 0, 1, 2, 3 ] # [ 0 ]
+devices: [ 0 ] # [ 0, 1, 2, 3 ]
 max_epochs: 100
 batch_size: 4
 num_workers: 23

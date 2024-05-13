@@ -5,6 +5,7 @@ import torch
 import torch.nn.functional as F
 import torchmetrics as tm
 import wandb
+import math
 from torch import nn
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
@@ -23,6 +24,7 @@ torch.set_float32_matmul_precision('medium')
 class SegFormerLightning(pl.LightningModule):
     def __init__(self, config: Config):
         super(SegFormerLightning, self).__init__()
+
         self.config = config
         self.class_labels = self.config.data.class_labels.to_dict()
 
@@ -35,11 +37,12 @@ class SegFormerLightning(pl.LightningModule):
         self.teacher = load_teacher_model(self.config)
         self.sam, self.sam_processor = load_sam(self.config)
 
+        self.delta_c, self.delta_s = None, None
+        self.update_loss_weights()
+
         self.segmentation_loss_fct = self.configure_criterion()
         self.consistency_loss_fct = nn.CrossEntropyLoss()
         self.sam_loss_fct = nn.CrossEntropyLoss()
-        self.delta_c = 1
-        self.delta_s = 1
         self.metrics = self.configure_metrics()
 
         self.current_step = None
@@ -55,6 +58,7 @@ class SegFormerLightning(pl.LightningModule):
         return loss
 
     def training_step(self, batch):
+        self.update_loss_weights()
         self.current_step = 'training'
         loss = self.forward(batch)
         self.log('train/loss', loss, on_epoch=True, sync_dist=True)
@@ -303,6 +307,11 @@ class SegFormerLightning(pl.LightningModule):
             outputs = outputs.argmax(dim=1)
 
         return outputs
+
+    def update_loss_weights(self):
+        current_epoch = self.current_epoch + 1
+        self.delta_c = 0.1 * math.exp(-5 * (1 - current_epoch / self.config.max_epochs))
+        self.delta_s = 0.1 * math.exp(-5 * (current_epoch / self.config.max_epochs))
 
     @torch.no_grad()
     def update_teacher(self, teacher_momentum=0.994):
