@@ -61,6 +61,7 @@ class SegFormerLightning(pl.LightningModule):
         self.update_loss_weights()
         self.current_step = 'training'
         loss = self.forward(batch)
+        self.update_teacher()
         self.log('train/loss', loss, on_epoch=True, sync_dist=True)
 
         return loss
