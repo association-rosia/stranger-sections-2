@@ -51,8 +51,8 @@ class SegFormerLightning(pl.LightningModule):
     def forward(self, batch):
         segmentation_input, segmentation_image, consistency_inputs, consistency_image = batch
         segmentation_loss = self.segmentation_forward(segmentation_input)
-        consistency_loss, consistency_logits_1 = self.consistency_forward(consistency_inputs)
-        sam_loss = self.sam_forward(consistency_inputs, consistency_logits_1)
+        consistency_loss, consistency_logits_s = self.consistency_forward(consistency_inputs)
+        sam_loss = self.sam_forward(consistency_inputs, consistency_logits_s)
         loss = segmentation_loss + self.delta_c * consistency_loss + self.delta_s * sam_loss
 
         return loss
@@ -135,24 +135,24 @@ class SegFormerLightning(pl.LightningModule):
         return loss
 
     def consistency_forward(self, inputs):
-        inputs_1, inputs_2 = inputs
+        inputs_s, inputs_t = inputs
 
-        outputs_1 = self.student(**inputs_1)
-        logits_1 = self.reshape_outputs(inputs_1, outputs_1)
+        outputs_s = self.student(**inputs_s)
+        logits_s = self.reshape_outputs(inputs_s, outputs_s)
 
-        outputs_2 = self.teacher(**inputs_2)
-        logits_2 = self.reshape_outputs(inputs_2, outputs_2)
-        mask_2 = self.logits_to_masks(logits_2)
+        outputs_t = self.teacher(**inputs_t)
+        logits_t = self.reshape_outputs(inputs_t, outputs_t)
+        mask_t = self.logits_to_masks(logits_t)
 
         if self.current_step == 'validation' and self.current_batch_idx == 0:
-            mask_1 = self.logits_to_masks(logits_1)
-            self.log_consistency_images(inputs_1, mask_1, '1')
-            self.log_consistency_images(inputs_2, mask_2, '2')
+            mask_s = self.logits_to_masks(logits_s)
+            self.log_consistency_images(inputs_s, mask_s, 'student')
+            self.log_consistency_images(inputs_t, mask_t, 'teacher')
 
-        loss = self.consistency_loss_fct(logits_1, mask_2)
+        loss = self.consistency_loss_fct(logits_s, mask_t)
         self.log('val/consistency_loss', loss, on_epoch=True, sync_dist=True)
 
-        return loss, logits_1
+        return loss, logits_s
 
     @torch.no_grad()
     def sam_forward(self, inputs, consistency_logits):
@@ -422,7 +422,11 @@ def load_student_model(config: Config):
 
 
 def load_teacher_model(config: Config):
-    model = load_student_model(config)
+    model = SegformerForSemanticSegmentation.from_pretrained(
+        pretrained_model_name_or_path=config.model_id,
+        num_labels=config.num_labels,
+        ignore_mismatched_sizes=True
+    )
 
     for param in model.parameters():
         param.requires_grad = False
