@@ -1,4 +1,4 @@
-dry: false
+dry: true
 
 mode: 'semi_supervised'
 model_name: 'segformer'
@@ -14,11 +14,11 @@ random_state: 42
 
 devices: [ 0 ] # [ 0, 1, 2, 3 ]
 max_epochs: 100
-batch_size: 4
+batch_size: 16
 num_workers: 23
 val_check_interval: 1.0
 early_stopping_patience: 15
 reduce_lr_on_plateau_patience: 7
 reduce_lr_on_plateau_factor: 0.5
-lr: 0.001
+lr: 0.0002
 

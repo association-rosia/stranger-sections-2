@@ -422,11 +422,12 @@ def load_student_model(config: Config):
 
 
 def load_teacher_model(config: Config):
-    model = SegformerForSemanticSegmentation.from_pretrained(
-        pretrained_model_name_or_path=config.model_id,
-        num_labels=config.num_labels,
-        ignore_mismatched_sizes=True
-    )
+    with torch.no_grad():
+        model = SegformerForSemanticSegmentation.from_pretrained(
+            pretrained_model_name_or_path=config.model_id,
+            num_labels=config.num_labels,
+            ignore_mismatched_sizes=True
+        )
 
     for param in model.parameters():
         param.requires_grad = False
@@ -435,9 +436,10 @@ def load_teacher_model(config: Config):
 
 
 def load_sam(config: Config):
-    model = SamModel.from_pretrained(
-        config.sam_id
-    )
+    with torch.no_grad():
+        model = SamModel.from_pretrained(
+            config.sam_id
+        )
 
     processor = SamImageProcessor.from_pretrained(
         config.sam_id,
