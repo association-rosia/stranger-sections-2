@@ -28,11 +28,11 @@ class SS2ImageProcessor:
         self.transforms = self._get_transforms(self.augmentation_mode)
 
     def preprocess(self,
-                   images: np.ndarray | list[np.ndarray],
-                   labels: np.ndarray | list[np.ndarray] = None,
-                   augmentation_mode: AugmentationMode = None,
-                   apply_huggingface: bool = True
-                   ):
+        images: np.ndarray | list[np.ndarray],
+        labels: np.ndarray | list[np.ndarray] = None,
+        augmentation_mode: AugmentationMode = None,
+        apply_huggingface: bool = True
+    ):
 
         if augmentation_mode is None:
             transforms = self.transforms

@@ -33,8 +33,11 @@ class SegFormerLightning(pl.LightningModule):
         self.unlabeled_tiles = tiler.build(labeled=False)
         self.processor = SS2ImageProcessor.get_huggingface_processor(config)
 
+        self.input_image_sizes = None
         self.student = load_student_model(self.config)
         self.teacher = load_teacher_model(self.config)
+
+        self.input_masks_sizes = (256, 256)
         self.sam, self.sam_processor = load_sam(self.config)
 
         self.delta_c, self.delta_s = None, None
@@ -50,6 +53,7 @@ class SegFormerLightning(pl.LightningModule):
 
     def forward(self, batch):
         segmentation_input, segmentation_image, consistency_inputs, consistency_image = batch
+        self.input_image_sizes = segmentation_input['pixel_values'].shape[-2:]
         segmentation_loss = self.segmentation_forward(segmentation_input)
         consistency_loss, consistency_logits_s = self.consistency_forward(consistency_inputs)
         sam_loss = self.sam_forward(consistency_inputs, consistency_logits_s)
@@ -120,10 +124,10 @@ class SegFormerLightning(pl.LightningModule):
     def segmentation_forward(self, inputs):
         labels = self.reshape_labels(inputs)
         outputs = self.student(**inputs)
-        logits = self.reshape_outputs(inputs, outputs)
+        logits = self.reshape_outputs(outputs)
 
         if self.current_step == 'validation':
-            masks = self.reshape_outputs(inputs, outputs, return_mask=True)
+            masks = self.reshape_outputs(outputs, return_mask=True)
             self.metrics.update(masks, labels)
 
             if self.current_batch_idx == 0:
@@ -138,10 +142,10 @@ class SegFormerLightning(pl.LightningModule):
         inputs_s, inputs_t = inputs
 
         outputs_s = self.student(**inputs_s)
-        logits_s = self.reshape_outputs(inputs_s, outputs_s)
+        logits_s = self.reshape_outputs(outputs_s)
 
         outputs_t = self.teacher(**inputs_t)
-        logits_t = self.reshape_outputs(inputs_t, outputs_t)
+        logits_t = self.reshape_outputs(outputs_t)
         mask_t = self.logits_to_masks(logits_t)
 
         if self.current_step == 'validation' and self.current_batch_idx == 0:
@@ -159,9 +163,9 @@ class SegFormerLightning(pl.LightningModule):
         inputs, _ = inputs
         consistency_masks = self.logits_to_masks(consistency_logits)
 
-        flatten_inputs, values, idcs = self.create_flatten_inputs(consistency_masks, inputs)
-        flatten_outputs = self.sam(**flatten_inputs)
-        sam_masks = self.post_process_flatten_outputs(flatten_inputs, flatten_outputs, values, idcs)
+        flatten_inputs, values, indices = self.create_flatten_inputs(consistency_masks, inputs)
+        flatten_outputs = self.sam_predict(flatten_inputs)
+        sam_masks = self.post_process_flatten_outputs(flatten_inputs, flatten_outputs, values, indices)
 
         if self.current_step == 'validation' and self.current_batch_idx == 0:
             self.log_sam_images(inputs, consistency_masks, sam_masks)
@@ -170,13 +174,69 @@ class SegFormerLightning(pl.LightningModule):
         self.log('val/sam_loss', loss, on_epoch=True, sync_dist=True)
 
         return loss
+    
+    def create_flatten_inputs(self, consistency_masks, inputs):
+        input_masks = []
+        pixel_values = []
+        values = []
+        indices = []
+        device = consistency_masks.device
 
-    def post_process_flatten_outputs(self, flatten_inputs, flatten_outputs, values, idcs):
+        for i in range(self.config.batch_size):
+            # create prompt mask
+            consistency_mask = consistency_masks[i]
+            input_masks_i, values_i = self.get_sam_input_masks(consistency_mask)
+            input_masks.append(input_masks_i)
+            values += values_i
+
+            # create input image
+            num_masks = len(input_masks_i) if input_masks_i is not None else 1
+            pixel_values_i = torch.stack([inputs['pixel_values'][i] for _ in range(num_masks)])
+            pixel_values_i = self.reshape_tensor(pixel_values_i)
+            pixel_values.append(pixel_values_i)
+            indices += [i for _ in range(num_masks)]
+
+        input_masks = torch.cat(input_masks).unsqueeze(dim=1)
+        pixel_values = torch.cat(pixel_values)
+        flatten_inputs = self.sam_processor(images=pixel_values, return_tensors='pt')
+        flatten_inputs['input_masks'] = input_masks
+        flatten_inputs['multimask_output'] = False
+        flatten_inputs = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in flatten_inputs.items()}
+
+        return flatten_inputs, values, indices
+
+    def sam_predict(self, flatten_inputs):
+        pred_masks = []
+        flatten_inputs_size = len(flatten_inputs['pixel_values'])
+
+        for start_idx in range(0, flatten_inputs_size, self.config.sam_batch_size):
+            end_idx = min(start_idx + self.config.sam_batch_size, flatten_inputs_size)
+            sam_batch = self.extract_sam_batch(flatten_inputs, start_idx, end_idx)
+            flatten_outputs = self.sam(**sam_batch)
+            pred_masks.append(flatten_outputs.pred_masks)
+
+        pred_masks = torch.cat(pred_masks)
+
+        return pred_masks
+
+    @staticmethod
+    def extract_sam_batch(flatten_inputs, start_idx, end_idx):
+        sam_batch = {}
+
+        for key, value in flatten_inputs.items():
+            if isinstance(value, torch.Tensor):
+                sam_batch[key] = value[start_idx:end_idx]
+            else:
+                sam_batch[key] = value
+
+        return sam_batch
+
+    def post_process_flatten_outputs(self, flatten_inputs, pred_masks, values, indices):
         sam_masks = []
-        unique_idcs = list(set(idcs))
+        unique_indices = list(set(indices))
 
         masks = self.sam_processor.post_process_masks(
-            masks=flatten_outputs.pred_masks,
+            masks=pred_masks,
             original_sizes=flatten_inputs['original_sizes'],
             reshaped_input_sizes=flatten_inputs['reshaped_input_sizes'],
             binarize=False
@@ -185,10 +245,10 @@ class SegFormerLightning(pl.LightningModule):
         masks = torch.cat(masks)
         masks = masks.squeeze(dim=1)
 
-        for idx in unique_idcs:
+        for idx in unique_indices:
             sam_mask = []
-            post_processed_masks_idx = masks[torch.Tensor(idcs) == idx]
-            mask_values = [values[i] for i in idcs if i == idx]
+            post_processed_masks_idx = masks[torch.Tensor(indices) == idx]
+            mask_values = [values[i] for i in indices if i == idx]
 
             replaced_class = 0
             for i in range(4):
@@ -205,39 +265,9 @@ class SegFormerLightning(pl.LightningModule):
             sam_masks.append(sam_mask)
 
         sam_masks = torch.stack(sam_masks)
-        sam_masks = self.reshape_tensor(sam_masks, size=(self.config.tile_size, self.config.tile_size), is_3d=True)
+        sam_masks = self.reshape_tensor(sam_masks, size=self.input_image_sizes, is_3d=True)
 
         return sam_masks
-
-    def create_flatten_inputs(self, consistency_masks, inputs):
-        input_masks = []
-        pixel_values = []
-        values = []
-        idcs = []
-        device = consistency_masks.device
-
-        for i in range(self.config.batch_size):
-            # create prompt mask
-            consistency_mask = consistency_masks[i]
-            input_masks_i, values_i = self.get_sam_input_masks(consistency_mask)
-            input_masks.append(input_masks_i)
-            values += values_i
-
-            # create input image
-            num_masks = len(input_masks_i) if input_masks_i is not None else 1
-            pixel_values_i = torch.stack([inputs['pixel_values'][i] for _ in range(num_masks)])
-            pixel_values_i = self.reshape_tensor(pixel_values_i)
-            pixel_values.append(pixel_values_i)
-            idcs += [i for _ in range(num_masks)]
-
-        input_masks = torch.cat(input_masks).unsqueeze(dim=1)
-        pixel_values = torch.cat(pixel_values)
-        flatten_inputs = self.sam_processor(images=pixel_values, return_tensors='pt')
-        flatten_inputs['input_masks'] = input_masks
-        flatten_inputs['multimask_output'] = False
-        flatten_inputs = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in flatten_inputs.items()}
-
-        return flatten_inputs, values, idcs
 
     @staticmethod
     def reshape_tensor(tensor, size=(1024, 1024), is_3d=False):
@@ -278,13 +308,12 @@ class SegFormerLightning(pl.LightningModule):
 
         return mask
 
-    @staticmethod
-    def reshape_labels(inputs):
+    def reshape_labels(self, inputs):
         labels = inputs['labels'].unsqueeze(dim=1)
 
         labels = nn.functional.interpolate(
             labels,
-            size=inputs['pixel_values'].shape[-2:],
+            size=self.input_image_sizes,
             mode='bilinear',
             align_corners=False
         )
@@ -293,13 +322,12 @@ class SegFormerLightning(pl.LightningModule):
 
         return labels
 
-    @staticmethod
-    def reshape_outputs(inputs, outputs, return_mask=False):
+    def reshape_outputs(self, outputs, return_mask=False):
         logits = outputs.logits
 
         outputs = nn.functional.interpolate(
             logits,
-            size=inputs['pixel_values'].shape[-2:],
+            size=self.input_image_sizes,
             mode='bilinear',
             align_corners=False
         )
