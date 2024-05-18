@@ -162,9 +162,9 @@ class SegFormerLightning(pl.LightningModule):
     def sam_forward(self, inputs, consistency_logits):
         inputs, _ = inputs
         consistency_masks = self.logits_to_masks(consistency_logits)
-        flatten_inputs, values, indices = self.get_flatten_inputs(consistency_masks, inputs)
+        flatten_inputs, classes, indices = self.get_flatten_inputs(consistency_masks, inputs)
         flatten_outputs = self.sam_predict(flatten_inputs)
-        sam_masks = self.post_process_flatten_outputs(flatten_inputs, flatten_outputs, values, indices)
+        sam_masks = self.post_process_flatten_outputs(flatten_inputs, flatten_outputs, classes, indices)
 
         if self.current_step == 'validation' and self.current_batch_idx == 0:
             self.log_sam_images(inputs, consistency_masks, sam_masks)
@@ -175,42 +175,42 @@ class SegFormerLightning(pl.LightningModule):
         return loss
 
     def get_flatten_inputs(self, consistency_masks, inputs):
-        input_masks, pixel_values, values, indices = [], [], [], []
+        input_masks, pixel_values, classes, indices = [], [], [], []
 
         for i in range(self.config.batch_size):
             consistency_mask = consistency_masks[i]
-            input_masks, input_masks_i, values = self.create_input_masks(consistency_mask, input_masks, values)
+            input_masks, input_masks_i, values = self.create_input_masks(consistency_mask, input_masks, classes)
             pixel_values, indices = self.create_pixel_values(input_masks_i, inputs, i, pixel_values, indices)
 
         flatten_inputs = self.create_flatten_inputs(consistency_masks, input_masks, pixel_values)
 
         func.save_tensor_image(flatten_inputs['pixel_values'][0], 'flatten_inputs[pixel_values][0]', is_2d=False)
-        func.save_tensor_image(flatten_inputs['input_masks'][0], 'flatten_inputs[input_masks][0]', is_2d=True)
+        func.save_tensor_image(flatten_inputs['input_masks'][0].squeeze(), 'flatten_inputs[input_masks][0]', is_2d=True)
 
-        return flatten_inputs, values, indices
+        return flatten_inputs, classes, indices
 
-    def create_input_masks(self, consistency_mask, input_masks, values):
-        values_i = torch.unique(consistency_mask).tolist()
+    def create_input_masks(self, consistency_mask, input_masks, classes):
+        classes_i = torch.unique(consistency_mask).tolist()
         input_masks_i = F.one_hot(consistency_mask.to(torch.int64))
         input_masks_i = torch.permute(input_masks_i, (2, 0, 1))
-        input_masks_i = input_masks_i[values_i]
+        input_masks_i = input_masks_i[classes_i]
 
-        if len(values_i) > 1 and 0 in values_i:
+        if len(classes_i) > 1 and 0 in classes_i:
             input_masks_i = input_masks_i[1:]
-            values_i = values_i[1:]
-        elif values_i == [0]:
+            classes_i = classes_i[1:]
+        elif classes_i == [0]:
             input_masks_i = torch.zeros(
                 size=(1, self.input_masks_sizes[0], self.input_masks_sizes[1]),
                 device=consistency_mask.device,
                 dtype=consistency_mask.dtype
             )
-            values_i = [-1]
+            classes_i = [-1]
 
         input_masks_i = self.reshape_tensor(input_masks_i, size=self.input_masks_sizes, is_3d=True)
         input_masks.append(input_masks_i)
-        values += values_i
+        classes += classes_i
 
-        return input_masks, input_masks_i, values
+        return input_masks, input_masks_i, classes
 
     def create_pixel_values(self, input_masks_i, inputs, i, pixel_values, indices):
         num_masks = len(input_masks_i) if input_masks_i is not None else 1
@@ -258,7 +258,7 @@ class SegFormerLightning(pl.LightningModule):
 
         return sam_batch
 
-    def post_process_flatten_outputs(self, flatten_inputs, pred_masks, values, indices):
+    def post_process_flatten_outputs(self, flatten_inputs, pred_masks, classes, batch_idx):
         sam_masks = []
 
         masks = self.sam_processor.post_process_masks(
@@ -267,29 +267,21 @@ class SegFormerLightning(pl.LightningModule):
             reshaped_input_sizes=flatten_inputs['reshaped_input_sizes'],
             binarize=False
         )
-        masks = torch.cat(masks).squeeze(dim=1)
+        masks = F.softmax(torch.cat(masks).squeeze(dim=1))
         func.save_tensor_image(masks[0], 'masks[0]', is_2d=True)
-
-        binarized_masks = self.sam_processor.post_process_masks(
-            masks=pred_masks,
-            original_sizes=flatten_inputs['original_sizes'],
-            reshaped_input_sizes=flatten_inputs['reshaped_input_sizes'],
-            binarize=True
-        )
-        binarized_masks = torch.cat(binarized_masks).squeeze(dim=1)
-        func.save_tensor_image(binarized_masks[0], 'binarized_masks[0]', is_2d=True)
 
         for idx in range(self.config.sam_batch_size):
             sam_mask = []
-            post_processed_masks_idx = masks[torch.Tensor(indices) == idx]
-            mask_values = [values[i] for i in indices if i == idx]
+            mask_batch_idx = masks[torch.Tensor(batch_idx) == idx]
+            mask_class_idx = [classes[i] for i in range(len(batch_idx)) if batch_idx[i] == idx]
 
-            replaced_class = 0
-            for i in range(4):
-                if i in mask_values:
-                    sam_mask.append(post_processed_masks_idx[replaced_class])
-                    replaced_class += 1
-                elif i == 0:
+            class_idx_replaced = 0
+            for label in range(self.config.num_labels):
+                if label in mask_class_idx:
+                    mask = (mask_batch_idx[class_idx_replaced] > self.config.sam_threshold).to(dtype=torch.float16)
+                    sam_mask.append(mask)
+                    class_idx_replaced += 1
+                elif label == 0:
                     sam_mask.append(1e-8 * torch.ones(masks.shape[-2:], device=masks.device, dtype=torch.float16))
                 else:
                     sam_mask.append(torch.zeros(masks.shape[-2:], device=masks.device, dtype=torch.float16))

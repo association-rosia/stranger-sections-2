@@ -3,11 +3,14 @@ dry: false
 mode: 'semi_supervised'
 model_name: 'segformer'
 model_id: 'nvidia/segformer-b5-finetuned-ade-640-640'
-sam_id: 'facebook/sam-vit-huge'
 checkpoint:
 
+sam_id: 'facebook/sam-vit-huge'
+sam_batch_size: 4
+sam_threshold: 0.5
+
 do_normalize: false
-tile_size: 256
+tile_size: 640
 contrast_factor:
 num_labels: 4
 random_state: 42
@@ -15,7 +18,6 @@ random_state: 42
 devices: [ 0 ] # [ 0, 1, 2, 3 ]
 max_epochs: 100
 batch_size: 4
-sam_batch_size: 4
 num_workers: 23
 val_check_interval: 1.0
 early_stopping_patience: 15
