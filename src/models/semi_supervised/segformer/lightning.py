@@ -179,7 +179,7 @@ class SegFormerLightning(pl.LightningModule):
 
         for i in range(self.config.batch_size):
             consistency_mask = consistency_masks[i]
-            input_masks, input_masks_i, values = self.create_input_masks(consistency_mask, input_masks, classes)
+            input_masks, input_masks_i, classes = self.create_input_masks(consistency_mask, input_masks, classes)
             pixel_values, indices = self.create_pixel_values(input_masks_i, inputs, i, pixel_values, indices)
 
         flatten_inputs = self.create_flatten_inputs(consistency_masks, input_masks, pixel_values)
