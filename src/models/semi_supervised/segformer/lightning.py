@@ -1,5 +1,6 @@
 import os
 
+import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
@@ -182,13 +183,17 @@ class SegFormerLightning(pl.LightningModule):
             input_masks, input_masks_i, classes = self.create_input_masks(consistency_mask, input_masks, classes)
             pixel_values, indices = self.create_pixel_values(input_masks_i, inputs, i, pixel_values, indices)
 
+            if self.current_step == 'validation' and self.current_batch_idx == 0 and i == 0:
+                self.log_input_masks(inputs, input_masks_i, classes)
+
         flatten_inputs = self.create_flatten_inputs(consistency_masks, input_masks, pixel_values)
 
         return flatten_inputs, classes, indices
 
     def create_input_masks(self, consistency_mask, input_masks, classes):
         classes_i = torch.unique(consistency_mask).tolist()
-        input_masks_i = F.one_hot(consistency_mask.to(torch.int64))
+        consistency_mask = self.reshape_tensor(consistency_mask, size=self.input_masks_sizes, is_2d=True)
+        input_masks_i = F.one_hot(consistency_mask.to(torch.int64)).to(dtype=torch.float16)
         input_masks_i = torch.permute(input_masks_i, (2, 0, 1))
         input_masks_i = input_masks_i[classes_i]
 
@@ -203,7 +208,6 @@ class SegFormerLightning(pl.LightningModule):
             )
             classes_i = [-1]
 
-        input_masks_i = self.reshape_tensor(input_masks_i, size=self.input_masks_sizes, is_3d=True)
         input_masks.append(input_masks_i)
         classes += classes_i
 
@@ -283,6 +287,10 @@ class SegFormerLightning(pl.LightningModule):
                     sam_mask.append(torch.zeros(masks.shape[-2:], device=masks.device, dtype=torch.float16))
 
             sam_mask = torch.stack(sam_mask)
+
+            if self.current_step == 'validation' and self.current_batch_idx == 0 and idx == 0:
+                self.log_output_masks(flatten_inputs, sam_mask)
+
             sam_mask = sam_mask.argmax(dim=0)
             sam_masks.append(sam_mask)
 
@@ -292,7 +300,10 @@ class SegFormerLightning(pl.LightningModule):
         return sam_masks
 
     @staticmethod
-    def reshape_tensor(tensor, size=(1024, 1024), is_3d=False):
+    def reshape_tensor(tensor, size=(1024, 1024), is_2d=False, is_3d=False):
+        if is_2d:
+            tensor = tensor.unsqueeze(dim=0).unsqueeze(dim=0)
+
         if is_3d:
             tensor = tensor.unsqueeze(dim=1)
 
@@ -302,7 +313,10 @@ class SegFormerLightning(pl.LightningModule):
             size=size,
             mode='bilinear',
             align_corners=False
-        ).squeeze(dim=1).half()
+        ).squeeze(dim=1).to(dtype=torch.float16)
+
+        if is_2d:
+            tensor = tensor.squeeze(dim=0)
 
         return tensor
 
@@ -406,6 +420,39 @@ class SegFormerLightning(pl.LightningModule):
                         'class_labels': self.class_labels,
                     }
                 }
+            )
+        })
+
+    def log_input_masks(self, inputs, input_masks, classes):
+        inputs = self.reshape_tensor(inputs['pixel_values'][0], self.input_masks_sizes, is_3d=True)
+        inputs = torch.moveaxis(inputs, 0, -1).numpy(force=True)
+        input_masks = input_masks.numpy(force=True)
+
+        masks = {}
+        class_idx_logged = 0
+        for class_label in range(len(self.class_labels)):
+            if class_label in classes:
+                masks[f'input_masks_{class_label}'] = {'mask_data': input_masks[class_idx_logged]}
+                class_idx_logged += 1
+            else:
+                masks[f'input_masks_{class_label}'] = {'mask_data': np.zeros(shape=self.input_masks_sizes)}
+
+        wandb.log({
+            'val/sam_input_masks': wandb.Image(
+                inputs,
+                masks=masks
+            )
+        })
+
+    def log_output_masks(self, flatten_inputs, output_masks):
+        inputs = torch.moveaxis(flatten_inputs['pixel_values'][0], 0, -1).numpy(force=True)
+        output_masks = output_masks.numpy(force=True)
+        masks = {f'output_masks_{i}': {'mask_data': output_masks[i]} for i in range(len(output_masks))}
+
+        wandb.log({
+            'val/sam_output_masks': wandb.Image(
+                inputs,
+                masks=masks
             )
         })
 
