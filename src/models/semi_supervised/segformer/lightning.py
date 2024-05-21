@@ -20,6 +20,22 @@ from src.utils.cls import Config
 
 torch.set_float32_matmul_precision('medium')
 
+import time
+from functools import wraps
+
+
+def measure_time(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        end_time = time.time()
+        execution_time = end_time - start_time
+        # print(f'\n{execution_time:.2f} seconds - {func.__name__}')
+        return result
+
+    return wrapper
+
 
 class SegFormerLightning(pl.LightningModule):
     def __init__(self, config: Config):
@@ -50,6 +66,7 @@ class SegFormerLightning(pl.LightningModule):
 
         self.current_step = None
         self.current_batch_idx = None
+
 
     def forward(self, batch):
         segmentation_input, segmentation_image, consistency_inputs, consistency_image = batch
@@ -159,6 +176,7 @@ class SegFormerLightning(pl.LightningModule):
         return loss, logits_s
 
     @torch.no_grad()
+    @measure_time
     def sam_forward(self, inputs, consistency_logits):
         inputs, _ = inputs
         consistency_masks = self.logits_to_masks(consistency_logits)
@@ -174,6 +192,7 @@ class SegFormerLightning(pl.LightningModule):
 
         return loss
 
+    @measure_time
     def get_flatten_inputs(self, consistency_masks, inputs):
         input_masks, pixel_values, classes, indices = [], [], [], []
 
@@ -183,9 +202,6 @@ class SegFormerLightning(pl.LightningModule):
             pixel_values, indices = self.create_pixel_values(input_masks_i, inputs, i, pixel_values, indices)
 
         flatten_inputs = self.create_flatten_inputs(consistency_masks, input_masks, pixel_values)
-
-        func.save_tensor_image(flatten_inputs['pixel_values'][0], 'flatten_inputs[pixel_values][0]', is_2d=False)
-        func.save_tensor_image(flatten_inputs['input_masks'][0].squeeze(), 'flatten_inputs[input_masks][0]', is_2d=True)
 
         return flatten_inputs, classes, indices
 
@@ -232,6 +248,7 @@ class SegFormerLightning(pl.LightningModule):
 
         return flatten_inputs
 
+    @measure_time
     def sam_predict(self, flatten_inputs):
         pred_masks = []
         flatten_inputs_size = len(flatten_inputs['pixel_values'])
@@ -258,6 +275,7 @@ class SegFormerLightning(pl.LightningModule):
 
         return sam_batch
 
+    @measure_time
     def post_process_flatten_outputs(self, flatten_inputs, pred_masks, classes, batch_idx):
         sam_masks = []
 
@@ -268,7 +286,6 @@ class SegFormerLightning(pl.LightningModule):
             binarize=False
         )
         masks = F.softmax(torch.cat(masks).squeeze(dim=1))
-        func.save_tensor_image(masks[0], 'masks[0]', is_2d=True)
 
         for idx in range(self.config.sam_batch_size):
             sam_mask = []
@@ -311,6 +328,7 @@ class SegFormerLightning(pl.LightningModule):
         return tensor
 
     @staticmethod
+    @measure_time
     def logits_to_masks(logits):
         mask = logits.argmax(dim=1)
 
@@ -392,6 +410,7 @@ class SegFormerLightning(pl.LightningModule):
             )
         })
 
+    @measure_time
     def log_sam_images(self, inputs, consistency_masks, sam_masks):
         inputs = torch.moveaxis(inputs['pixel_values'][0], 0, -1).numpy(force=True)
         consistency_masks = consistency_masks[0].numpy(force=True)
