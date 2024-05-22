@@ -121,7 +121,7 @@ def train_val_split_tiles(config: Config, tiles: list):
     return train_tiles, val_tiles
 
 
-def display_tensor(tensor, name, is_2d=False):
+def save_tensor_image(tensor, name, is_2d=False):
     os.makedirs('logs', exist_ok=True)
     os.makedirs(os.path.join('logs', 'plots'), exist_ok=True)
 
@@ -132,7 +132,7 @@ def display_tensor(tensor, name, is_2d=False):
     plt.savefig(os.path.join('logs', 'plots', name))
 
 
-def display_array(array, name):
+def save_array_image(array, name):
     os.makedirs('logs', exist_ok=True)
     os.makedirs(os.path.join('logs', 'plots'), exist_ok=True)
     plt.imshow(array)
