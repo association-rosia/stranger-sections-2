@@ -83,7 +83,7 @@ def get_trainer(config: Config):
     )
 
     early_stopping_callback = pl.callbacks.EarlyStopping(
-        monitor='val/loss',
+        monitor='val/iou-micro',
         patience=config.early_stopping_patience,
         verbose=True,
         mode='min'
