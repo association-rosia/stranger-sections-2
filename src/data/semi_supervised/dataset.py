@@ -10,7 +10,11 @@ from src.utils.cls import Config
 
 
 class SS2SemiSupervisedDataset(Dataset):
-    def __init__(self, config: Config, labeled_tiles: list, unlabeled_tiles: list):
+    def __init__(self,
+                 config: Config,
+                 labeled_tiles: list,
+                 unlabeled_tiles: list
+                 ):
         super().__init__()
         self.config = config
         self.labeled_tiles = labeled_tiles
