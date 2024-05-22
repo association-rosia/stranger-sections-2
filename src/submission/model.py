@@ -1,6 +1,6 @@
 import numpy as np
-import src.data.supervised.collate as spv_collate
-import src.data.supervised.processor as spv_processor
+from src.data import collate
+from src.data import processor
 import torch
 from PIL import Image
 from typing_extensions import Self
@@ -39,7 +39,14 @@ class SS2InferenceModel(torch.nn.Module):
             tile_size: int = None
     ) -> Self:
         model = load_model(config, map_location=map_location)
-        self = cls(config, model.model, map_location=map_location, tiling=tiling, tile_size=tile_size)
+        if hasattr(model, 'model'):
+            base_model = model.model
+        elif hasattr(model, 'student'):
+            base_model = model.student
+        else:
+            NotImplementedError
+        
+        self = cls(config, base_model, map_location=map_location, tiling=tiling, tile_size=tile_size)
 
         return self
 
@@ -49,12 +56,12 @@ class SS2InferenceModel(torch.nn.Module):
 
         return base_model
 
-    def _get_processor(self) -> spv_processor.SS2SupervisedProcessor:
-        if self.config.mode == 'supervised':
-            return spv_processor.make_inference_processor(self.config)
-            # TODO: rework this part
-        else:
-            raise ValueError(f"mode expected 'supervised' but received {self.config.mode}")
+    def _get_processor(self) -> processor.SS2ImageProcessor:
+        # if self.config.mode == 'supervised':
+        return processor.make_inference_processor(self.config)
+        #     # TODO: rework this part
+        # else:
+        #     raise ValueError(f"mode expected 'supervised' but received {self.config.mode}")
 
     def _get_base_model_forward(self):
         if self.config.model_name == 'mask2former':
@@ -65,10 +72,10 @@ class SS2InferenceModel(torch.nn.Module):
             raise ValueError(f"model_name expected 'mask2former' but received {self.config.model_name}")
 
     def _get_collate(self):
-        if self.config.mode == 'supervised':
-            return spv_collate.get_collate_fn_inference(self.config)
-        else:
-            raise ValueError(f"mode expected 'supervised' but received {self.config.mode}")
+        # if self.config.mode == 'supervised':
+        return collate.get_collate_fn_inference(self.config)
+        # else:
+        #     raise ValueError(f"mode expected 'supervised' but received {self.config.mode}")
 
     def _get_tile_size(self, tile_size):
         if self.tiling:
