@@ -154,7 +154,7 @@ class SegFormerLightning(pl.LightningModule):
             self.log_consistency_images(inputs_s, mask_s, 'student')
             self.log_consistency_images(inputs_t, mask_t, 'teacher')
 
-        loss = self.consistency_loss_fct(logits_s, mask_t)
+        loss = self.consistency_loss_fct(logits_s, mask_t.long())
         self.log('val/consistency_loss', loss, on_epoch=True, sync_dist=True)
 
         return loss, logits_s
@@ -179,22 +179,27 @@ class SegFormerLightning(pl.LightningModule):
         input_masks, pixel_values, classes, indices = [], [], [], []
 
         for i in range(self.config.batch_size):
-            consistency_mask = consistency_masks[i]
-            input_masks, input_masks_i, classes = self.create_input_masks(consistency_mask, input_masks, classes)
-            pixel_values, indices = self.create_pixel_values(input_masks_i, inputs, i, pixel_values, indices)
+            input_masks, input_masks_i, classes, classes_i = self.create_input_masks(i, consistency_masks, input_masks, classes)
+            pixel_values, indices = self.create_pixel_values(i, input_masks_i, inputs, pixel_values, indices)
 
             if self.current_step == 'validation' and self.current_batch_idx == 0 and i == 0:
-                self.log_input_masks(inputs, input_masks_i, classes)
+                self.log_input_masks(inputs, input_masks_i, classes_i)
 
         flatten_inputs = self.create_flatten_inputs(consistency_masks, input_masks, pixel_values)
 
         return flatten_inputs, classes, indices
 
-    def create_input_masks(self, consistency_mask, input_masks, classes):
-        classes_i = torch.unique(consistency_mask).tolist()
-        consistency_mask = self.reshape_tensor(consistency_mask, size=self.input_masks_sizes, is_2d=True)
-        input_masks_i = F.one_hot(consistency_mask.to(torch.int64)).to(dtype=torch.float16)
+    def create_input_masks(self, i, consistency_masks, input_masks, classes):
+        consistency_masks_i = consistency_masks[i]
+        classes_i = torch.unique(consistency_masks_i).tolist()
+        consistency_masks_i = self.reshape_tensor(consistency_masks_i, size=self.input_masks_sizes, is_2d=True)
+        input_masks_i = F.one_hot(consistency_masks_i.long(), num_classes=self.config.num_labels)
+        input_masks_i = input_masks_i.to(dtype=torch.float16)
         input_masks_i = torch.permute(input_masks_i, (2, 0, 1))
+
+        for i, class_i in enumerate(classes_i):
+            assert torch.all(torch.eq(input_masks_i[classes_i][i], input_masks_i[class_i])).item()
+
         input_masks_i = input_masks_i[classes_i]
 
         if len(classes_i) > 1 and 0 in classes_i:
@@ -203,17 +208,17 @@ class SegFormerLightning(pl.LightningModule):
         elif classes_i == [0]:
             input_masks_i = torch.zeros(
                 size=(1, self.input_masks_sizes[0], self.input_masks_sizes[1]),
-                device=consistency_mask.device,
-                dtype=consistency_mask.dtype
+                device=consistency_masks_i.device,
+                dtype=consistency_masks_i.dtype
             )
             classes_i = [-1]
 
         input_masks.append(input_masks_i)
         classes += classes_i
 
-        return input_masks, input_masks_i, classes
+        return input_masks, input_masks_i, classes, classes_i
 
-    def create_pixel_values(self, input_masks_i, inputs, i, pixel_values, indices):
+    def create_pixel_values(self, i, input_masks_i, inputs, pixel_values, indices):
         num_masks = len(input_masks_i) if input_masks_i is not None else 1
         pixel_values_i = torch.stack([inputs['pixel_values'][i] for _ in range(num_masks)])
         pixel_values_i = self.reshape_tensor(pixel_values_i)
@@ -323,6 +328,7 @@ class SegFormerLightning(pl.LightningModule):
     @staticmethod
     def logits_to_masks(logits):
         mask = logits.argmax(dim=1)
+        mask = mask.to(dtype=torch.uint8)
 
         return mask
 
@@ -423,19 +429,21 @@ class SegFormerLightning(pl.LightningModule):
             )
         })
 
-    def log_input_masks(self, inputs, input_masks, classes):
+    def log_input_masks(self, inputs, input_masks_i, classes_i):
         inputs = self.reshape_tensor(inputs['pixel_values'][0], self.input_masks_sizes, is_3d=True)
         inputs = torch.moveaxis(inputs, 0, -1).numpy(force=True)
-        input_masks = input_masks.numpy(force=True)
+        input_masks_i = input_masks_i.numpy(force=True)
 
         masks = {}
         class_idx_logged = 0
         for class_label in range(len(self.class_labels)):
-            if class_label in classes:
-                masks[f'input_masks_{class_label}'] = {'mask_data': input_masks[class_idx_logged]}
+            if class_label in classes_i:
+                masks[f'input_masks_{class_label}'] = {'mask_data': input_masks_i[class_idx_logged]}
                 class_idx_logged += 1
             else:
                 masks[f'input_masks_{class_label}'] = {'mask_data': np.zeros(shape=self.input_masks_sizes)}
+
+        masks = dict(sorted(masks.items()))
 
         wandb.log({
             'val/sam_input_masks': wandb.Image(
@@ -444,10 +452,12 @@ class SegFormerLightning(pl.LightningModule):
             )
         })
 
-    def log_output_masks(self, flatten_inputs, output_masks):
+    @staticmethod
+    def log_output_masks(flatten_inputs, output_masks):
         inputs = torch.moveaxis(flatten_inputs['pixel_values'][0], 0, -1).numpy(force=True)
         output_masks = output_masks.numpy(force=True)
         masks = {f'output_masks_{i}': {'mask_data': output_masks[i]} for i in range(len(output_masks))}
+        masks = dict(sorted(masks.items()))
 
         wandb.log({
             'val/sam_output_masks': wandb.Image(

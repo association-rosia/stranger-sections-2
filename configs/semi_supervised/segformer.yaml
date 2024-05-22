@@ -23,5 +23,5 @@ val_check_interval: 1.0
 early_stopping_patience: 15
 reduce_lr_on_plateau_patience: 7
 reduce_lr_on_plateau_factor: 0.5
-lr: 0.000001
+lr: 0.000002
 
