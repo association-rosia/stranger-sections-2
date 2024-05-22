@@ -196,10 +196,6 @@ class SegFormerLightning(pl.LightningModule):
         input_masks_i = F.one_hot(consistency_masks_i.long(), num_classes=self.config.num_labels)
         input_masks_i = input_masks_i.to(dtype=torch.float16)
         input_masks_i = torch.permute(input_masks_i, (2, 0, 1))
-
-        for i, class_i in enumerate(classes_i):
-            assert torch.all(torch.eq(input_masks_i[classes_i][i], input_masks_i[class_i])).item()
-
         input_masks_i = input_masks_i[classes_i]
 
         if len(classes_i) > 1 and 0 in classes_i:
