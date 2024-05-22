@@ -2,10 +2,6 @@ import warnings
 
 warnings.filterwarnings('ignore')
 
-from dotenv import load_dotenv
-
-load_dotenv()
-
 import argparse
 import os
 
@@ -83,7 +79,7 @@ def get_trainer(config: Config):
     )
 
     early_stopping_callback = pl.callbacks.EarlyStopping(
-        monitor='val/iou-micro',
+        monitor='val/loss',
         patience=config.early_stopping_patience,
         verbose=True,
         mode='min'
