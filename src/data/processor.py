@@ -60,12 +60,19 @@ class SS2ImageProcessor:
 
     @staticmethod
     def _preprocess_images_only(images, transforms):
-        return [torch.clamp(transforms(tv_tensors.Image(image)), min=0, max=1) for image in images]
+        images_processed = []
+
+        for image in images:
+            image_processed = transforms(tv_tensors.Image(image))
+            image_processed = torch.clamp(image_processed, min=0, max=1)
+            image_processed = image_processed.to(dtype=torch.float16)
+            images_processed.append(image_processed)
+
+        return images_processed
 
     @staticmethod
     def _preprocess_images_masks(images, masks, transforms):
-        images_processed = []
-        masks_processed = []
+        images_processed, masks_processed = [], []
 
         for image, mask in zip(images, masks):
             image_processed, mask_processed = transforms(
@@ -74,7 +81,10 @@ class SS2ImageProcessor:
             )
 
             image_processed = torch.clamp(image_processed, min=0, max=1)
+            image_processed = image_processed.to(dtype=torch.float16)
             images_processed.append(image_processed)
+
+            mask_processed = mask_processed.to(dtype=torch.uint8)
             masks_processed.append(mask_processed)
 
         return images_processed, masks_processed
