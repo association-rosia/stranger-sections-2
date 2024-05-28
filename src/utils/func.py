@@ -77,6 +77,7 @@ def load_unsupervised_image(config, tile: dict) -> np.ndarray:
 
     x0, y0, x1, y1 = tile['bbox']
     image = image[x0:x1, y0:y1, :]
+    image = np.moveaxis(image, -1, 0)
 
     return image
 
@@ -89,6 +90,7 @@ def load_supervised_image(config, tile: dict) -> np.ndarray:
 
     x0, y0, x1, y1 = tile['bbox']
     image = image[x0:x1, y0:y1, :]
+    image = np.moveaxis(image, -1, 0)
 
     return image
 

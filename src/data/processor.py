@@ -1,6 +1,5 @@
 import os.path
 from enum import Enum
-from typing import overload
 
 import numpy as np
 import torch
@@ -15,8 +14,8 @@ from src.utils.cls import Config
 
 class AugmentationMode(Enum):
     NONE = -1
-    SPATIAL = 0
-    COLORIMETRIC = 1
+    GEOMETRIC = 0
+    PHOTOMETRIC = 1
     BOTH = 2
 
 
@@ -25,14 +24,14 @@ class SS2ImageProcessor:
         self.config = config
         self.augmentation_mode = augmentation_mode
         self.huggingface_processor = self.get_huggingface_processor(config)
-        self.transforms = self._get_transforms(self.augmentation_mode)
+        self.transforms = self._get_transforms(augmentation_mode)
 
     def preprocess(self,
-        images: np.ndarray | list[np.ndarray],
-        labels: np.ndarray | list[np.ndarray] = None,
-        augmentation_mode: AugmentationMode = None,
-        apply_huggingface: bool = True
-    ):
+                   images: np.ndarray | list[np.ndarray],
+                   labels: np.ndarray | list[np.ndarray] = None,
+                   augmentation_mode: AugmentationMode = None,
+                   apply_huggingface: bool = True
+                   ):
 
         if augmentation_mode is None:
             transforms = self.transforms
@@ -61,12 +60,19 @@ class SS2ImageProcessor:
 
     @staticmethod
     def _preprocess_images_only(images, transforms):
-        return [transforms(tv_tensors.Image(image)) for image in images]
+        images_processed = []
+
+        for image in images:
+            image_processed = transforms(tv_tensors.Image(image))
+            image_processed = torch.clamp(image_processed, min=0, max=1)
+            image_processed = image_processed.to(dtype=torch.float16)
+            images_processed.append(image_processed)
+
+        return images_processed
 
     @staticmethod
     def _preprocess_images_masks(images, masks, transforms):
-        images_processed = []
-        masks_processed = []
+        images_processed, masks_processed = [], []
 
         for image, mask in zip(images, masks):
             image_processed, mask_processed = transforms(
@@ -74,7 +80,11 @@ class SS2ImageProcessor:
                 tv_tensors.Mask(mask)
             )
 
+            image_processed = torch.clamp(image_processed, min=0, max=1)
+            image_processed = image_processed.to(dtype=torch.float16)
             images_processed.append(image_processed)
+
+            mask_processed = mask_processed.to(dtype=torch.uint8)
             masks_processed.append(mask_processed)
 
         return images_processed, masks_processed
@@ -110,10 +120,6 @@ class SS2ImageProcessor:
 
         return processor
 
-    def set_augmentation_mode(self, augmentation_mode: AugmentationMode):
-        self.augmentation_mode = augmentation_mode
-        self.transforms = self._get_transforms()
-
     @staticmethod
     def _get_none_transforms():
         transforms = [
@@ -123,48 +129,52 @@ class SS2ImageProcessor:
         return transforms
 
     @staticmethod
-    def _get_spatial_transforms():
+    def _get_geometric_transforms():
         transforms = [
-            tv2T.Lambda(lambda x: x)
-            # tv2T.Lambda(
-            #     partial(tv2F.adjust_contrast, contrast_factor=self.config.contrast_factor']),
-            #     tv_tensors.Image
-            # ),
+            tv2T.RandomAffine(degrees=(-10, 10), translate=(0.05, 0.05), scale=(0.95, 1.05), shear=(-8, 8)),
+            tv2T.RandomHorizontalFlip(p=0.5),
+            tv2T.RandomVerticalFlip(p=0.1),
+            tv2T.RandomPerspective(distortion_scale=0.2, p=0.2),
+            tv2T.ElasticTransform(alpha=1, sigma=0.1)
         ]
 
         return transforms
 
     @staticmethod
-    def _get_colorimetric_transforms():
+    def _get_photometric_transforms():
         transforms = [
-            tv2T.Lambda(lambda x: x)
-            # tv2T.Lambda(
-            #     partial(tv2F.adjust_contrast, contrast_factor=self.config.contrast_factor']),
-            #     tv_tensors.Image
-            # ),
+            tv2T.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.05),
+            tv2T.GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 1.0)),
+            tv2T.RandomGrayscale(p=0.05),
+            tv2T.RandomInvert(p=0.05),
+            tv2T.RandomPosterize(bits=5, p=0.1),
+            tv2T.RandomSolarize(threshold=0.75, p=0.1),
+            tv2T.RandomAdjustSharpness(sharpness_factor=1.5, p=0.2),
+            tv2T.RandomAutocontrast(p=0.2),
+            tv2T.RandomEqualize(p=0.2)
         ]
 
         return transforms
 
     def _get_both_transforms(self):
-        spatial_transforms = self._get_spatial_transforms()
-        colorimetric_transforms = self._get_colorimetric_transforms()
+        geometric_transforms = self._get_geometric_transforms()
+        photometric_transforms = self._get_photometric_transforms()
 
-        return [*spatial_transforms, *colorimetric_transforms]
+        return [*geometric_transforms, *photometric_transforms]
 
     def _get_transforms(self, augmentation_mode: AugmentationMode) -> tv2T.Compose:
         transforms = [tv2T.ToDtype(dtype=torch.float32, scale=True)]
 
         if augmentation_mode == AugmentationMode.NONE:
             transforms.extend(self._get_none_transforms())
-        elif augmentation_mode == AugmentationMode.SPATIAL:
-            transforms.extend(self._get_spatial_transforms())
-        elif augmentation_mode == AugmentationMode.COLORIMETRIC:
-            transforms.extend(self._get_colorimetric_transforms())
+        elif augmentation_mode == AugmentationMode.GEOMETRIC:
+            transforms.extend(self._get_geometric_transforms())
+        elif augmentation_mode == AugmentationMode.PHOTOMETRIC:
+            transforms.extend(self._get_photometric_transforms())
         elif augmentation_mode == AugmentationMode.BOTH:
             transforms.extend(self._get_both_transforms())
         else:
-            raise ValueError(f"Unknown augmentation_mode: {self.augmentation_mode}")
+            raise ValueError(f"Unknown augmentation_mode: {augmentation_mode}")
 
         return tv2T.Compose(transforms)
 
