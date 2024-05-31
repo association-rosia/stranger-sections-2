@@ -127,15 +127,16 @@ class SegFormerLightning(pl.LightningModule):
         outputs = self.student(**inputs)
         logits = self.reshape_outputs(outputs)
 
+        loss = self.segmentation_loss_fct(logits, labels)
+
         if self.current_step == 'validation':
+            self.log('val/segmentation_loss', loss, on_epoch=True, sync_dist=True)
+
             masks = self.reshape_outputs(outputs, return_mask=True)
             self.metrics.update(masks, labels)
 
             if self.current_batch_idx == 0:
                 self.log_segmentation_images(inputs, labels, masks)
-
-        loss = self.segmentation_loss_fct(logits, labels)
-        self.log('val/segmentation_loss', loss, on_epoch=True, sync_dist=True)
 
         return loss
 
@@ -149,13 +150,15 @@ class SegFormerLightning(pl.LightningModule):
         logits_t = self.reshape_outputs(outputs_t)
         mask_t = self.logits_to_masks(logits_t)
 
-        if self.current_step == 'validation' and self.current_batch_idx == 0:
-            mask_s = self.logits_to_masks(logits_s)
-            self.log_consistency_images(inputs_s, mask_s, 'student')
-            self.log_consistency_images(inputs_t, mask_t, 'teacher')
-
         loss = self.consistency_loss_fct(logits_s, mask_t.long())
-        self.log('val/consistency_loss', loss, on_epoch=True, sync_dist=True)
+
+        if self.current_step == 'validation':
+            self.log('val/consistency_loss', loss, on_epoch=True, sync_dist=True)
+
+            if self.current_batch_idx == 0:
+                mask_s = self.logits_to_masks(logits_s)
+                self.log_consistency_images(inputs_s, mask_s, 'student')
+                self.log_consistency_images(inputs_t, mask_t, 'teacher')
 
         return loss, logits_s
 
@@ -163,15 +166,19 @@ class SegFormerLightning(pl.LightningModule):
     def sam_forward(self, inputs, consistency_logits):
         inputs, _ = inputs
         consistency_masks = self.logits_to_masks(consistency_logits)
+
         flatten_inputs, classes, indices = self.get_flatten_inputs(consistency_masks, inputs)
         flatten_outputs = self.sam_predict(flatten_inputs)
+
         sam_masks = self.post_process_flatten_outputs(flatten_inputs, flatten_outputs, classes, indices)
 
-        if self.current_step == 'validation' and self.current_batch_idx == 0:
-            self.log_sam_images(inputs, consistency_masks, sam_masks)
-
         loss = self.sam_loss_fct(consistency_logits, sam_masks.long())
-        self.log('val/sam_loss', loss, on_epoch=True, sync_dist=True)
+
+        if self.current_step == 'validation':
+            self.log('val/sam_loss', loss, on_epoch=True, sync_dist=True)
+
+            if self.current_batch_idx == 0:
+                self.log_sam_images(inputs, consistency_masks, sam_masks)
 
         return loss
 
