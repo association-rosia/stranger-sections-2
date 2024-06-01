@@ -1,42 +1,46 @@
 import torch
 from transformers import SamModel, SamImageProcessor
 
+from src.utils import func
 from src.utils.cls import Config
 
 
 class SamForSemiSupervised:
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, loss_fct):
         self.config = config
-
-        self.loss_fct = nn.CrossEntropyLoss()
+        self.loss_fct = loss_fct
 
     @torch.no_grad()
     def forward(self, inputs, consistency_logits):
         inputs, _ = inputs
-        consistency_masks = self.logits_to_masks(consistency_logits)
+        consistency_masks = func.logits_to_masks(consistency_logits)
 
         flatten_inputs, classes, indices = self.get_flatten_inputs(consistency_masks, inputs)
         flatten_outputs = self.sam_predict(flatten_inputs)
-
         sam_masks = self.post_process_flatten_outputs(flatten_inputs, flatten_outputs, classes, indices)
 
-        loss = self.sam_loss_fct(consistency_logits, sam_masks.long())
+        loss = self.loss_fct(consistency_logits, sam_masks.long())
 
-        if self.current_step == 'validation':
-            self.log('val/sam_loss', loss, on_epoch=True, sync_dist=True)
-
-            if self.current_batch_idx == 0:
-                self.log_sam_images(inputs, consistency_masks, sam_masks)
-
-        return loss
+        return loss, consistency_masks, sam_masks
 
     def get_flatten_inputs(self, consistency_masks, inputs):
         input_masks, pixel_values, classes, indices = [], [], [], []
 
         for i in range(self.config.batch_size):
-            input_masks, input_masks_i, classes, classes_i = self.create_input_masks(i, consistency_masks, input_masks,
-                                                                                     classes)
-            pixel_values, indices = self.create_pixel_values(i, input_masks_i, inputs, pixel_values, indices)
+            input_masks, input_masks_i, classes, classes_i = self.create_input_masks(
+                i,
+                consistency_masks,
+                input_masks,
+                classes
+            )
+
+            pixel_values, indices = self.create_pixel_values(
+                i,
+                input_masks_i,
+                inputs,
+                pixel_values,
+                indices
+            )
 
             if self.current_step == 'validation' and self.current_batch_idx == 0 and i == 0:
                 self.log_input_masks(inputs, input_masks_i, classes_i)
@@ -48,7 +52,7 @@ class SamForSemiSupervised:
     def create_input_masks(self, i, consistency_masks, input_masks, classes):
         consistency_masks_i = consistency_masks[i]
         classes_i = torch.unique(consistency_masks_i).tolist()
-        consistency_masks_i = self.reshape_tensor(consistency_masks_i, size=self.input_masks_sizes, is_2d=True)  # TODO
+        consistency_masks_i = func.reshape_tensor(consistency_masks_i, size=self.input_masks_sizes)  # TODO
         input_masks_i = F.one_hot(consistency_masks_i.long(), num_classes=self.config.num_labels)
         input_masks_i = input_masks_i.to(dtype=torch.float16)
         input_masks_i = torch.permute(input_masks_i, (2, 0, 1))
@@ -73,7 +77,7 @@ class SamForSemiSupervised:
     def create_pixel_values(self, i, input_masks_i, inputs, pixel_values, indices):
         num_masks = len(input_masks_i) if input_masks_i is not None else 1
         pixel_values_i = torch.stack([inputs['pixel_values'][i] for _ in range(num_masks)])
-        pixel_values_i = self.reshape_tensor(pixel_values_i)  # TODO
+        pixel_values_i = func.reshape_tensor(pixel_values_i, size=())  # TODO
         pixel_values.append(pixel_values_i)
         indices += [i for _ in range(num_masks)]
 
@@ -152,7 +156,7 @@ class SamForSemiSupervised:
             sam_masks.append(sam_mask)
 
         sam_masks = torch.stack(sam_masks)
-        sam_masks = self.reshape_tensor(sam_masks, size=self.input_image_sizes, is_3d=True)  # TODO
+        sam_masks = func.reshape_tensor(sam_masks, size=self.input_image_sizes)  # TODO
 
         return sam_masks
 

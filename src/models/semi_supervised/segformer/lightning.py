@@ -6,7 +6,7 @@ import pytorch_lightning as pl
 import torch
 import torchmetrics as tm
 import wandb
-from torch import nn
+from torch.nn import CrossEntropyLoss
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
@@ -35,18 +35,16 @@ class SegFormerLightning(pl.LightningModule):
         self.processor = SS2ImageProcessor.get_huggingface_processor(config)
 
         self.input_image_sizes = None
-        self.input_masks_sizes = (256, 256)
 
         self.student = load_student_model(config)
         self.teacher = load_teacher_model(config)
-        self.sam = SamForSemiSupervised(config)
+        self.sam = SamForSemiSupervised(config, loss_fct=CrossEntropyLoss)
 
         self.delta_c, self.delta_s = None, None
         self.update_loss_weights()
 
         self.segmentation_loss_fct = self.configure_criterion()
-        self.consistency_loss_fct = nn.CrossEntropyLoss()
-        self.sam_loss_fct = nn.CrossEntropyLoss()
+        self.consistency_loss_fct = CrossEntropyLoss()
         self.metrics = self.configure_metrics()
 
         self.current_step = None
@@ -57,8 +55,8 @@ class SegFormerLightning(pl.LightningModule):
         self.input_image_sizes = segmentation_input['pixel_values'].shape[-2:]
 
         segmentation_loss = self.segmentation_forward(segmentation_input)
-        consistency_loss, consistency_logits_s = self.consistency_forward(consistency_inputs)
-        sam_loss = self.sam_forward(consistency_inputs, consistency_logits_s)
+        consistency_loss, consistency_logits_student = self.consistency_forward(consistency_inputs)
+        sam_loss = self.sam_forward(consistency_inputs, consistency_logits_student)
 
         loss = segmentation_loss + self.delta_c * consistency_loss + self.delta_s * sam_loss
 
@@ -110,7 +108,7 @@ class SegFormerLightning(pl.LightningModule):
         label_weights = self.config.data.label_weights.__dict__
         weight = torch.Tensor([label_weights[class_labels[str(i)]] for i in class_ordered])
 
-        return nn.CrossEntropyLoss(weight=weight)
+        return CrossEntropyLoss(weight=weight)
 
     def configure_metrics(self):
         num_labels = self.config.num_labels
@@ -125,16 +123,17 @@ class SegFormerLightning(pl.LightningModule):
         return metrics
 
     def segmentation_forward(self, inputs):
-        labels = self.reshape_labels(inputs)  # TODO
+        labels = self.reshape_tensor(inputs['labels'], size=self.input_image_sizes)  # TODO
         outputs = self.student(**inputs)
-        logits = self.reshape_outputs(outputs)  # TODO
+        logits = func.reshape_tensor(outputs.logits, size=self.input_image_sizes)  # TODO
 
         loss = self.segmentation_loss_fct(logits, labels)
 
         if self.current_step == 'validation':
             self.log('val/segmentation_loss', loss, on_epoch=True, sync_dist=True)
 
-            masks = self.reshape_outputs(outputs, return_mask=True)  # TODO
+            logits = func.reshape_tensor(outputs.logits, size=self.input_image_sizes)  # TODO
+            masks = func.logits_to_masks(logits)
             self.metrics.update(masks, labels)
 
             if self.current_batch_idx == 0:
@@ -143,26 +142,37 @@ class SegFormerLightning(pl.LightningModule):
         return loss
 
     def consistency_forward(self, inputs):
-        inputs_s, inputs_t = inputs
+        inputs_student, inputs_teacher = inputs
 
-        outputs_s = self.student(**inputs_s)
-        logits_s = self.reshape_outputs(outputs_s)  # TODO
+        outputs_student = self.student(**inputs_student)
+        logits_student = func.reshape_tensor(outputs_student.logits, size=self.input_image_sizes)  # TODO
 
-        outputs_t = self.teacher(**inputs_t)
-        logits_t = self.reshape_outputs(outputs_t)  # TODO
-        mask_t = self.logits_to_masks(logits_t)
+        outputs_teacher = self.teacher(**inputs_teacher)
+        logits_teacher = func.reshape_tensor(outputs_teacher.logits, size=self.input_image_sizes)  # TODO
+        mask_teacher = func.logits_to_masks(logits_teacher)
 
-        loss = self.consistency_loss_fct(logits_s, mask_t.long())
+        loss = self.consistency_loss_fct(logits_student, mask_teacher.long())
 
         if self.current_step == 'validation':
             self.log('val/consistency_loss', loss, on_epoch=True, sync_dist=True)
 
             if self.current_batch_idx == 0:
-                mask_s = self.logits_to_masks(logits_s)
-                self.log_consistency_images(inputs_s, mask_s, 'student')
-                self.log_consistency_images(inputs_t, mask_t, 'teacher')
+                mask_student = func.logits_to_masks(logits_student)
+                self.log_consistency_images(inputs_student, mask_student, 'student')
+                self.log_consistency_images(inputs_teacher, mask_teacher, 'teacher')
 
-        return loss, logits_s
+        return loss, logits_student
+
+    def sam_forward(self, inputs, logits_student):
+        loss, consistency_masks, sam_masks = self.sam.forward(inputs, logits_student)
+
+        if self.current_step == 'validation':
+            self.log('val/sam_loss', loss, on_epoch=True, sync_dist=True)
+
+            if self.current_batch_idx == 0:
+                self.log_sam_images(inputs, consistency_masks, sam_masks)
+
+        return loss
 
     def update_loss_weights(self):
         current_epoch = self.current_epoch + 1
@@ -233,7 +243,7 @@ class SegFormerLightning(pl.LightningModule):
         })
 
     def log_input_masks(self, inputs, input_masks_i, classes_i):
-        inputs = self.reshape_tensor(inputs['pixel_values'][0], self.input_masks_sizes, is_3d=True)  # TODO
+        inputs = self.reshape_tensor(inputs['pixel_values'][0], self.input_image_sizes)
         inputs = torch.moveaxis(inputs, 0, -1).numpy(force=True)
         input_masks_i = input_masks_i.numpy(force=True)
 
@@ -244,7 +254,7 @@ class SegFormerLightning(pl.LightningModule):
                 masks[f'input_masks_{class_label}'] = {'mask_data': input_masks_i[class_idx_logged]}
                 class_idx_logged += 1
             else:
-                masks[f'input_masks_{class_label}'] = {'mask_data': np.zeros(shape=self.input_masks_sizes)}
+                masks[f'input_masks_{class_label}'] = {'mask_data': np.zeros(shape=self.input_image_sizes)}
 
         masks = dict(sorted(masks.items()))
 
@@ -268,19 +278,6 @@ class SegFormerLightning(pl.LightningModule):
                 masks=masks
             )
         })
-
-    @staticmethod
-    def get_original_mask(masks):
-        output_mask = torch.zeros_like(masks[0])
-
-        # Iterate through the stacked binary mask tensors
-        for index, mask in enumerate(masks):
-            # Find the indices where the mask is True
-            true_indices = torch.nonzero(mask, as_tuple=False)
-            # Update the output tensor with the corresponding indices
-            output_mask[true_indices[:, 0], true_indices[:, 1]] = index + 1
-
-        return output_mask
 
     def train_dataloader(self):
         return DataLoader(

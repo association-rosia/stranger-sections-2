@@ -2,6 +2,7 @@ import os
 
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
 import wandb
 import wandb.apis.public as wandb_api
 import yaml
@@ -11,56 +12,17 @@ from sklearn.model_selection import train_test_split
 from src.utils.cls import Config
 
 
-def reshape_tensor(tensor, size=(1024, 1024), is_2d=False, is_3d=False):
-    if is_2d:
-        tensor = tensor.unsqueeze(dim=0).unsqueeze(dim=0)
-
-    if is_3d:
-        tensor = tensor.unsqueeze(dim=1)
-
+def reshape_tensor(tensor, size):
     tensor = tensor.float()
+
     tensor = F.interpolate(
         tensor,
         size=size,
         mode='bilinear',
         align_corners=False
-    ).squeeze(dim=1).to(dtype=torch.float16)
-
-    if is_2d:
-        tensor = tensor.squeeze(dim=0)
+    )
 
     return tensor
-
-
-def reshape_labels(self, inputs):
-    labels = inputs['labels'].unsqueeze(dim=1)
-
-    labels = nn.functional.interpolate(
-        labels,
-        size=self.input_image_sizes,
-        mode='bilinear',
-        align_corners=False
-    )
-
-    labels = labels.squeeze(dim=1)
-
-    return labels
-
-
-def reshape_outputs(self, outputs, return_mask=False):
-    logits = outputs.logits
-
-    outputs = nn.functional.interpolate(
-        logits,
-        size=self.input_image_sizes,
-        mode='bilinear',
-        align_corners=False
-    )
-
-    if return_mask:
-        outputs = outputs.argmax(dim=1)
-
-    return outputs
 
 
 def logits_to_masks(logits):
