@@ -34,7 +34,7 @@ class SamForSemiSupervised:
         pixel_values, input_points, input_labels, classes, indices = [], [], [], [], []
 
         for i in range(self.config.batch_size):
-            input_points_i, input_labels_i, classes_i = self.get_input_points_labels(
+            input_masks_i, input_points_i, input_labels_i, classes_i = self.get_input_points_labels(
                 index=i,
                 consistency_masks=consistency_masks
             )
@@ -42,9 +42,10 @@ class SamForSemiSupervised:
             input_labels.append(input_labels_i)
             classes += classes_i
 
-            pixel_values_i, indices_i = self.create_pixel_values(
+            pixel_values_i, indices_i = self.get_pixel_values(
                 index=i,
-                input_masks_i=input_masks_i,
+                input_points=input_points_i,
+                input_labels=input_labels_i,
                 inputs=inputs
             )
             pixel_values.append(pixel_values_i)
@@ -61,25 +62,37 @@ class SamForSemiSupervised:
         consistency_masks = consistency_masks[index]
         classes = torch.unique(consistency_masks).tolist()
         consistency_masks = func.reshape_tensor(consistency_masks, size=self.pixel_values_sizes)
+        input_masks = self.get_input_masks(consistency_masks, classes)
+        input_masks, classes = self.update_input_masks_classes(input_masks, classes)
+        input_points, input_labels = self.input_points_labels(input_masks)
 
+        return input_masks, input_points, input_labels, classes
+
+    def create_input_points_labels(self, input_masks):
+        return input_points, input_labels
+
+    def get_input_masks(self, consistency_masks, classes):
         input_masks = F.one_hot(consistency_masks.long(), num_classes=self.config.num_labels)
         input_masks = torch.permute(input_masks, (2, 0, 1))
         input_masks = input_masks[classes]
 
+        return input_masks
+
+    def update_input_masks_classes(self, input_masks, classes):
         if len(classes) > 1 and 0 in classes:
             input_masks = input_masks[1:]
             classes = classes[1:]
         elif classes == [0]:
             input_masks = torch.zeros(
-                size=(1, self.input_masks_sizes[0], self.input_masks_sizes[1]),
-                device=consistency_masks.device,
-                dtype=consistency_masks.dtype
-            )
+                size=self.pixel_values_sizes,
+                device=input_masks.device,
+                dtype=input_masks.dtype
+            ).unsqueeze(dim=0)
             classes = [-1]
 
-        return input_masks, input_masks, classes
+        return input_masks, classes
 
-    def create_pixel_values(self, index, input_masks_i, inputs):
+    def get_pixel_values(self, index, input_points, input_labels, inputs):
         num_masks = len(input_masks_i) if input_masks_i is not None else 1
         pixel_values_i = torch.stack([inputs['pixel_values'][index] for _ in range(num_masks)])
         pixel_values_i = func.reshape_tensor(pixel_values_i, size=())  # TODO
