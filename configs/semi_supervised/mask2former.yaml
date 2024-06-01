@@ -1,0 +1,27 @@
+dry: false
+
+mode: 'semi_supervised'
+model_name: 'mask2former'
+model_id: 'facebook/mask2former-swin-large-cityscapes-semantic'
+checkpoint:
+
+# sam_id: 'facebook/sam-vit-huge' # 'facebook/sam-vit-base'
+# sam_batch_size: 4
+# sam_threshold: 0.5
+
+do_normalize: false
+tile_size: 384
+contrast_factor:
+num_labels: 4
+random_state: 42
+
+devices: [ 0 ] # [ 0, 1, 2, 3 ]
+max_epochs: 100
+batch_size: 4
+num_workers: 23
+val_check_interval: 1.0
+early_stopping_patience: 15
+reduce_lr_on_plateau_patience: 7
+reduce_lr_on_plateau_factor: 0.5
+lr: 0.00005
+

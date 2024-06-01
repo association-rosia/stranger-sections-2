@@ -25,3 +25,12 @@ class RunDemo:
         self.config = config
         self.name = name
         self.id = id
+
+
+class TrainingMode:
+    SEMI_SUPERVISED = 'semi_supervised'
+    SUPERVISED = 'supervised'
+
+class ModelName:
+    MASK2FORMER = 'mask2former'
+    SEGFORMER = 'segformer'

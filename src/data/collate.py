@@ -1,36 +1,58 @@
 import torch
+from src.utils.cls import Config, TrainingMode
 
+class Mask2formerCollateFn:
+    def __init__(self, config: Config, training: bool) -> None:
+        self.training = training
+        self.config = config
+        self.collate_fn = self._get_collate_fn()
 
-def mask2former_collate_fn_training(batch):
-    class_labels = []
-    mask_labels = []
-    pixel_values = []
-    pixel_mask = []
-    for el in batch:
-        class_labels.extend(el['class_labels'])
-        mask_labels.extend(el['mask_labels'])
-        pixel_values.append(el['pixel_values'])
-        pixel_mask.append(el['pixel_mask'])
+    def __call__(self, batch):
+        return self.collate_fn(batch)
+    
+    def _get_collate_fn(self):
+        if self.training:
+            if self.config.mode == TrainingMode.SEMI_SUPERVISED:
+                return self.train_semi_supervised_collate_fn
+            elif self.config.mode == TrainingMode.SUPERVISED:
+                return self.train_supervised_collate_fn
+            else:
+                raise NotImplementedError
+        else:
+            return self.inference_collate_fn
+            
+    def train_supervised_collate_fn(self, batch):
+        class_labels = []
+        mask_labels = []
+        pixel_values = []
+        pixel_mask = []
+        for el in batch:
+            class_labels.extend(el['class_labels'])
+            mask_labels.extend(el['mask_labels'])
+            pixel_values.append(el['pixel_values'])
+            pixel_mask.append(el['pixel_mask'])
 
-    return {
-        'pixel_values': torch.concat(pixel_values),
-        'pixel_mask': torch.concat(pixel_mask),
-        'class_labels': class_labels,
-        'mask_labels': mask_labels
-    }
+        return {
+            'pixel_values': torch.concat(pixel_values),
+            'pixel_mask': torch.concat(pixel_mask),
+            'class_labels': class_labels,
+            'mask_labels': mask_labels
+        }
+    
+    def train_semi_supervised_collate_fn(self, batch):
+        segmentation_input = self.train_supervised_collate_fn()
 
+    def inference_collate_fn(batch):
+        pixel_values = []
+        pixel_mask = []
+        for el in batch:
+            pixel_values.append(el['pixel_values'])
+            pixel_mask.append(el['pixel_mask'])
 
-def mask2former_collate_fn_inference(batch):
-    pixel_values = []
-    pixel_mask = []
-    for el in batch:
-        pixel_values.append(el['pixel_values'])
-        pixel_mask.append(el['pixel_mask'])
-
-    return {
-        'pixel_values': torch.concat(pixel_values),
-        'pixel_mask': torch.concat(pixel_mask)
-    }
+        return {
+            'pixel_values': torch.concat(pixel_values),
+            'pixel_mask': torch.concat(pixel_mask)
+        }
 
 
 def segformer_collate_fn_training(batch):
@@ -54,7 +76,7 @@ def segformer_collate_fn_inference(batch):
 
 def get_collate_fn_training(config):
     if config.model_name == 'mask2former':
-        return mask2former_collate_fn_training
+        return Mask2formerCollateFn(training=True)
     elif config.model_name == 'segformer':
         return segformer_collate_fn_training
     else:
@@ -63,7 +85,7 @@ def get_collate_fn_training(config):
 
 def get_collate_fn_inference(config):
     if config.model_name == 'mask2former':
-        return mask2former_collate_fn_inference
+        return Mask2formerCollateFn(training=False)
     elif config.model_name == 'segformer':
         return segformer_collate_fn_inference
     else:
