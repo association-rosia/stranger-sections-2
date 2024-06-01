@@ -85,13 +85,12 @@ def get_trainer(config: Config):
         verbose=True
     )
 
-    early_stopping_callback = pl.callbacks.EarlyStopping(
-        monitor='val/iou-micro',
-        mode='max',
-        patience=config.early_stopping_patience,
-        verbose=True
-
-    )
+    # early_stopping_callback = pl.callbacks.EarlyStopping(
+    #     monitor='val/iou-micro',
+    #     mode='max',
+    #     patience=config.early_stopping_patience,
+    #     verbose=True
+    # )
 
     if config.dry:
         trainer = pl.Trainer(
@@ -108,9 +107,9 @@ def get_trainer(config: Config):
             devices=config.devices,
             max_epochs=config.max_epochs,
             logger=pl.loggers.WandbLogger(),
-            callbacks=[checkpoint_callback_loss, checkpoint_callback_metric, early_stopping_callback],
+            # callbacks=[checkpoint_callback_loss, checkpoint_callback_metric, early_stopping_callback],
+            callbacks=[checkpoint_callback_loss, checkpoint_callback_metric],
             precision='16-mixed',
-            # strategy='ddp_find_unused_parameters_true',
             val_check_interval=config.val_check_interval
         )
     else:
@@ -118,7 +117,8 @@ def get_trainer(config: Config):
             devices=config.devices,
             max_epochs=config.max_epochs,
             logger=pl.loggers.WandbLogger(),
-            callbacks=[checkpoint_callback_loss, checkpoint_callback_metric, early_stopping_callback],
+            # callbacks=[checkpoint_callback_loss, checkpoint_callback_metric, early_stopping_callback],
+            callbacks=[checkpoint_callback_loss, checkpoint_callback_metric],
             precision='16-mixed',
             val_check_interval=config.val_check_interval
         )

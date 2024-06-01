@@ -2,13 +2,42 @@ import os
 
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
 import wandb
 import wandb.apis.public as wandb_api
 import yaml
 from PIL import Image
 from sklearn.model_selection import train_test_split
+import torch.nn.functional as F
 
 from src.utils.cls import Config
+
+
+def reshape_tensor(tensor, size):
+    dtype = tensor.dtype
+    num_shapes = len(tensor.shape)
+
+    while len(tensor.shape) < 4:
+        tensor = tensor.unsqueeze(dim=0)
+
+    tensor = F.interpolate(
+        tensor.float(),
+        size=size,
+        mode='bilinear',
+        align_corners=False
+    )
+
+    while len(tensor.shape) > num_shapes:
+        tensor = tensor.squeeze(dim=0)
+
+    return tensor.to(dtype=dtype)
+
+
+def logits_to_masks(logits):
+    mask = logits.argmax(dim=1)
+    mask = mask.to(dtype=torch.uint8)
+
+    return mask
 
 
 def get_notebooks_path(path: str) -> str:

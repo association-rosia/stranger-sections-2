@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image
 from tqdm import tqdm
 
-from src.submission.model import SS2InferenceModel
+from src.submissions.model import SS2InferenceModel
 from src.utils import func
 from src.utils.cls import Config
 
