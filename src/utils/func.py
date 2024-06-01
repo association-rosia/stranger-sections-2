@@ -84,7 +84,7 @@ def get_run(run_id: str) -> wandb_api.Run:
     run = None
 
     if run_id:
-        config = load_config('main')
+        config = load_config('main', loading='object')
 
         api = wandb.Api()
         run = wandb_api.Run(

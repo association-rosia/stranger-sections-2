@@ -1,6 +1,5 @@
 import numpy as np
-import src.data.supervised.collate as spv_collate
-import src.data.supervised.processor as spv_processor
+from src.data import collate, processor
 import torch
 from PIL import Image
 from typing_extensions import Self
@@ -39,7 +38,12 @@ class SS2InferenceModel(torch.nn.Module):
             tile_size: int = None
     ) -> Self:
         model = load_model(config, map_location=map_location)
-        self = cls(config, model.model, map_location=map_location, tiling=tiling, tile_size=tile_size)
+        if hasattr(model, 'model'):
+            model = model.model
+        else:
+            model = model.student
+
+        self = cls(config, model, map_location=map_location, tiling=tiling, tile_size=tile_size)
 
         return self
 
@@ -49,13 +53,9 @@ class SS2InferenceModel(torch.nn.Module):
 
         return base_model
 
-    def _get_processor(self) -> spv_processor.SS2SupervisedProcessor:
-        if self.config.mode == 'supervised':
-            return spv_processor.make_inference_processor(self.config)
-            # TODO: rework this part
-        else:
-            raise ValueError(f"mode expected 'supervised' but received {self.config.mode}")
-
+    def _get_processor(self) -> processor.SS2ImageProcessor:
+        return processor.make_inference_processor(self.config)
+        
     def _get_base_model_forward(self):
         if self.config.model_name == 'mask2former':
             return self._mask2former_forward
@@ -65,11 +65,8 @@ class SS2InferenceModel(torch.nn.Module):
             raise ValueError(f"model_name expected 'mask2former' but received {self.config.model_name}")
 
     def _get_collate(self):
-        if self.config.mode == 'supervised':
-            return spv_collate.get_collate_fn_inference(self.config)
-        else:
-            raise ValueError(f"mode expected 'supervised' but received {self.config.mode}")
-
+        return collate.get_collate_fn_inference(self.config)
+        
     def _get_tile_size(self, tile_size):
         if self.tiling:
             if tile_size is None:
