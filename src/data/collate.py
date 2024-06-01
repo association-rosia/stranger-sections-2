@@ -27,14 +27,14 @@ class Mask2formerCollateFn:
         pixel_values = []
         pixel_mask = []
         for el in batch:
-            class_labels.extend(el['class_labels'])
-            mask_labels.extend(el['mask_labels'])
+            class_labels.append(el['class_labels'])
+            mask_labels.append(el['mask_labels'])
             pixel_values.append(el['pixel_values'])
             pixel_mask.append(el['pixel_mask'])
 
         return {
-            'pixel_values': torch.concat(pixel_values),
-            'pixel_mask': torch.concat(pixel_mask),
+            'pixel_values': torch.stack(pixel_values),
+            'pixel_mask': torch.stack(pixel_mask),
             'class_labels': class_labels,
             'mask_labels': mask_labels
         }
@@ -62,8 +62,8 @@ class Mask2formerCollateFn:
             pixel_mask.append(el['pixel_mask'])
 
         return {
-            'pixel_values': torch.concat(pixel_values),
-            'pixel_mask': torch.concat(pixel_mask)
+            'pixel_values': torch.stack(pixel_values),
+            'pixel_mask': torch.stack(pixel_mask)
         }
 
 

@@ -47,6 +47,3 @@ class SS2Mask2FormerLoss(torch.nn.Module):
                     loss *= weight
 
         return sum(loss_dict.values())
-
-    
-     
