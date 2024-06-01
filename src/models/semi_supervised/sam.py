@@ -24,6 +24,7 @@ class SamForSemiSupervised:
 
     @torch.no_grad()
     def forward(self, inputs, logits):
+        #TODO ne pas mettre des logits mais le mask directement
         masks = func.logits_to_masks(logits)
         inputs, classes, indices = self.get_inputs(masks, inputs)
         outputs = self.batch_predict(inputs)

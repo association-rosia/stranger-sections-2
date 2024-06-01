@@ -1,7 +1,7 @@
 import torch
 from src.utils.cls import Config, TrainingMode
 
-class Mask2formerCollateFn:
+class SS2Mask2formerCollateFn:
     def __init__(self, config: Config, training: bool) -> None:
         self.training = training
         self.config = config
@@ -88,7 +88,7 @@ def segformer_collate_fn_inference(batch):
 
 def get_collate_fn_training(config):
     if config.model_name == 'mask2former':
-        return Mask2formerCollateFn(config=config, training=True)
+        return SS2Mask2formerCollateFn(config=config, training=True)
     elif config.model_name == 'segformer':
         return segformer_collate_fn_training
     else:
@@ -97,7 +97,7 @@ def get_collate_fn_training(config):
 
 def get_collate_fn_inference(config):
     if config.model_name == 'mask2former':
-        return Mask2formerCollateFn(config=config, training=False)
+        return SS2Mask2formerCollateFn(config=config, training=False)
     elif config.model_name == 'segformer':
         return segformer_collate_fn_inference
     else:

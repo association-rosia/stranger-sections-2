@@ -14,7 +14,7 @@ import wandb
  
 import src.data.semi_supervised.dataset as ssp_dataset
 from src.data.processor import SS2ImageProcessor
-from src.data import collate
+from src.data.collate import SS2Mask2formerCollateFn
 from src.data.tiling import Tiler
 from src.models.semi_supervised.mask2former.losses import SS2Mask2FormerLoss
 from src.utils import func
@@ -162,18 +162,18 @@ class Mask2FormerLightning(pl.LightningModule):
 
         return segmentation_loss
 
-    def consistency_forward(self, inputs_s, inputs_t):
+    def consistency_forward(self, inputs_student, inputs_teacher):
         target_sizes = [self.config.tile_size] * self.config.batch_size
 
         outputs_s = self.student.forward(
-            pixel_values=inputs_s['pixel_values'],
-            pixel_mask=inputs_s['pixel_mask'],
+            pixel_values=inputs_student['pixel_values'],
+            pixel_mask=inputs_student['pixel_mask'],
             output_auxiliary_logits=True
         )
 
         outputs_t = self.teacher.forward(
-            pixel_values=inputs_t['pixel_values'],
-            pixel_mask=inputs_t['pixel_mask']
+            pixel_values=inputs_teacher['pixel_values'],
+            pixel_mask=inputs_teacher['pixel_mask']
         )
 
         outputs_processed_t = self.processor.post_process_semantic_segmentation(outputs_t, target_sizes=target_sizes)
@@ -183,8 +183,8 @@ class Mask2FormerLightning(pl.LightningModule):
             outputs_processed_s = self.processor.post_process_semantic_segmentation(outputs_t, target_sizes=target_sizes)
             masks_s = torch.stack(outputs_processed_s)
 
-            self.log_consistency_images(inputs_s, masks_s, 'student')
-            self.log_consistency_images(inputs_t, masks_t, 'teacher')
+            self.log_consistency_images(inputs_student, masks_s, 'student')
+            self.log_consistency_images(inputs_teacher, masks_t, 'teacher')
 
         mask_labels, class_labels = [], []
         for mask_t in masks_t:
@@ -321,7 +321,7 @@ class Mask2FormerLightning(pl.LightningModule):
             shuffle=True,
             drop_last=True,
             pin_memory=True,
-            collate_fn=collate.get_collate_fn_training(self.config)
+            collate_fn=SS2Mask2formerCollateFn(config=self.config, training=True)
         )
 
     def val_dataloader(self):
@@ -332,7 +332,7 @@ class Mask2FormerLightning(pl.LightningModule):
             shuffle=False,
             drop_last=True,
             pin_memory=True,
-            collate_fn=collate.get_collate_fn_training(self.config)
+            collate_fn=SS2Mask2formerCollateFn(config=self.config, training=True)
         )
 
 
