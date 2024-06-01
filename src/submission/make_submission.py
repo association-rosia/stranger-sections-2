@@ -13,10 +13,10 @@ from src.utils.cls import Config
 
 def main():
     base_config = func.load_config('main')
-    wandb_run = func.get_run('ujjdbhrh')
+    wandb_run = func.get_run('o6e33l2t')
     submission_name = f'{wandb_run.name}-{wandb_run.id}'
 
-    for checkpoint_type, tiling in product(['metric', 'loss'], [True, False]):
+    for checkpoint_type, tiling in product(['metric'], [True]):
         # for checkpoint_type, tiling in product(['metric'], [False]):
         wandb_run.config['checkpoint'] = f'{wandb_run.name}-{wandb_run.id}-{checkpoint_type}.ckpt'
         config = Config(base_config, wandb_run.config)

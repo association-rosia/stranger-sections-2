@@ -55,7 +55,7 @@ def get_run(run_id: str) -> wandb_api.Run:
     run = None
 
     if run_id:
-        config = load_config('main')
+        config = load_config('main', loading='object')
 
         api = wandb.Api()
         run = wandb_api.Run(
@@ -77,6 +77,7 @@ def load_unsupervised_image(config, tile: dict) -> np.ndarray:
 
     x0, y0, x1, y1 = tile['bbox']
     image = image[x0:x1, y0:y1, :]
+    image = np.moveaxis(image, -1, 0)
 
     return image
 
@@ -89,6 +90,7 @@ def load_supervised_image(config, tile: dict) -> np.ndarray:
 
     x0, y0, x1, y1 = tile['bbox']
     image = image[x0:x1, y0:y1, :]
+    image = np.moveaxis(image, -1, 0)
 
     return image
 

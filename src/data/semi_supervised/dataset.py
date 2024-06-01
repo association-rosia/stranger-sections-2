@@ -53,13 +53,13 @@ class SS2SemiSupervisedDataset(Dataset):
 
         images = self.processor.preprocess(
             images=images,
-            augmentation_mode=AugmentationMode.SPATIAL,
+            augmentation_mode=AugmentationMode.GEOMETRIC,
             apply_huggingface=False,
         )
 
         inputs_1 = self.processor.preprocess(
             images=images,
-            augmentation_mode=AugmentationMode.COLORIMETRIC,
+            augmentation_mode=AugmentationMode.PHOTOMETRIC,
             apply_huggingface=True,
         )
         inputs_1 = self.adjust_shape(inputs_1)
@@ -67,7 +67,7 @@ class SS2SemiSupervisedDataset(Dataset):
 
         inputs_2 = self.processor.preprocess(
             images=images,
-            augmentation_mode=AugmentationMode.COLORIMETRIC,
+            augmentation_mode=AugmentationMode.PHOTOMETRIC,
             apply_huggingface=True,
         )
         inputs_2 = self.adjust_shape(inputs_2)

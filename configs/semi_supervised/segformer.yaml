@@ -2,7 +2,7 @@ dry: false
 
 mode: 'semi_supervised'
 model_name: 'segformer'
-model_id: 'nvidia/segformer-b5-finetuned-ade-640-640' # 'nvidia/segformer-b0-finetuned-ade-512-512' #
+model_id: 'nvidia/segformer-b5-finetuned-ade-640-640' # 'nvidia/segformer-b0-finetuned-ade-512-512'
 checkpoint:
 
 sam_id: 'facebook/sam-vit-huge' # 'facebook/sam-vit-base'
@@ -23,5 +23,5 @@ val_check_interval: 1.0
 early_stopping_patience: 15
 reduce_lr_on_plateau_patience: 7
 reduce_lr_on_plateau_factor: 0.5
-lr: 0.00005
+lr: 0.00001
 
