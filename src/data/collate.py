@@ -40,9 +40,21 @@ class Mask2formerCollateFn:
         }
     
     def train_semi_supervised_collate_fn(self, batch):
-        segmentation_input = self.train_supervised_collate_fn()
+        batch_segmentation = []
+        batch_consistency_student = []
+        batch_consistency_teacher = []
+        for el in batch:
+            batch_segmentation.append(el[0])
+            batch_consistency_student.append(el[1][0])
+            batch_consistency_teacher.append(el[1][1])
 
-    def inference_collate_fn(batch):
+        segmentation_inputs = self.train_supervised_collate_fn(batch_segmentation)
+        consistency_student_inputs = self.inference_collate_fn(batch_consistency_student)
+        consistency_teacher_inputs = self.inference_collate_fn(batch_consistency_teacher)
+
+        return segmentation_inputs, (consistency_student_inputs, consistency_teacher_inputs)
+
+    def inference_collate_fn(self, batch):
         pixel_values = []
         pixel_mask = []
         for el in batch:
@@ -76,7 +88,7 @@ def segformer_collate_fn_inference(batch):
 
 def get_collate_fn_training(config):
     if config.model_name == 'mask2former':
-        return Mask2formerCollateFn(training=True)
+        return Mask2formerCollateFn(config=config, training=True)
     elif config.model_name == 'segformer':
         return segformer_collate_fn_training
     else:
@@ -85,7 +97,7 @@ def get_collate_fn_training(config):
 
 def get_collate_fn_inference(config):
     if config.model_name == 'mask2former':
-        return Mask2formerCollateFn(training=False)
+        return Mask2formerCollateFn(config=config, training=False)
     elif config.model_name == 'segformer':
         return segformer_collate_fn_inference
     else:
