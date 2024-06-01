@@ -14,16 +14,23 @@ from src.utils.cls import Config
 
 
 def reshape_tensor(tensor, size):
-    tensor = tensor.float()
+    dtype = tensor.dtype
+    num_shapes = len(tensor.shape)
+
+    while len(tensor.shape) < 4:
+        tensor = tensor.unsqueeze(dim=0)
 
     tensor = F.interpolate(
-        tensor,
+        tensor.float(),
         size=size,
         mode='bilinear',
         align_corners=False
     )
 
-    return tensor
+    while len(tensor.shape) > num_shapes:
+        tensor = tensor.squeeze(dim=0)
+
+    return tensor.to(dtype=dtype)
 
 
 def logits_to_masks(logits):

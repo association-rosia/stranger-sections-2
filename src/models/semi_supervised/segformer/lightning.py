@@ -1,7 +1,6 @@
 import math
 import os
 
-import numpy as np
 import pytorch_lightning as pl
 import torch
 import torchmetrics as tm
@@ -43,7 +42,7 @@ class SegFormerLightning(pl.LightningModule):
 
         self.student = load_student_model(config)
         self.teacher = load_teacher_model(config)
-        self.sam = SamForSemiSupervised(config, loss_fct=self.sam_loss_fct)
+        self.sam = SamForSemiSupervised(config, class_labels=self.class_labels, loss_fct=self.sam_loss_fct)
 
         self.delta_c, self.delta_s = None, None
         self.update_loss_weights()
@@ -68,7 +67,7 @@ class SegFormerLightning(pl.LightningModule):
         self.current_step = 'training'
         loss = self.forward(batch)
         self.update_teacher()
-        self.log('train/loss', loss, on_epoch=True, sync_dist=True)
+        self.log('train/loss', loss, on_epoch=True)
 
         return loss
 
@@ -76,13 +75,13 @@ class SegFormerLightning(pl.LightningModule):
         self.current_step = 'validation'
         self.current_batch_idx = batch_idx
         loss = self.forward(batch)
-        self.log('val/loss', loss, on_epoch=True, sync_dist=True)
+        self.log('val/loss', loss, on_epoch=True)
 
         return loss
 
     def on_validation_epoch_end(self):
         metrics = self.metrics.compute()
-        self.log_dict(metrics, on_epoch=True, sync_dist=True)
+        self.log_dict(metrics, on_epoch=True)
         self.metrics.reset()
 
     def configure_optimizers(self):
@@ -124,16 +123,14 @@ class SegFormerLightning(pl.LightningModule):
         return metrics
 
     def segmentation_forward(self, inputs):
-        labels = self.reshape_tensor(inputs['labels'], size=self.input_image_sizes)  # TODO
         outputs = self.student(**inputs)
-        logits = func.reshape_tensor(outputs.logits, size=self.input_image_sizes)  # TODO
+        logits = func.reshape_tensor(outputs.logits, size=self.input_image_sizes)
+        labels = func.reshape_tensor(inputs['labels'], size=self.input_image_sizes)
 
         loss = self.segmentation_loss_fct(logits, labels)
 
         if self.current_step == 'validation':
-            self.log('val/segmentation_loss', loss, on_epoch=True, sync_dist=True)
-
-            logits = func.reshape_tensor(outputs.logits, size=self.input_image_sizes)  # TODO
+            self.log('val/segmentation_loss', loss, on_epoch=True)
             masks = func.logits_to_masks(logits)
             self.metrics.update(masks, labels)
 
@@ -146,16 +143,16 @@ class SegFormerLightning(pl.LightningModule):
         inputs_student, inputs_teacher = inputs
 
         outputs_student = self.student(**inputs_student)
-        logits_student = func.reshape_tensor(outputs_student.logits, size=self.input_image_sizes)  # TODO
+        logits_student = func.reshape_tensor(outputs_student.logits, size=self.input_image_sizes)
 
         outputs_teacher = self.teacher(**inputs_teacher)
-        logits_teacher = func.reshape_tensor(outputs_teacher.logits, size=self.input_image_sizes)  # TODO
+        logits_teacher = func.reshape_tensor(outputs_teacher.logits, size=self.input_image_sizes)
         mask_teacher = func.logits_to_masks(logits_teacher)
 
         loss = self.consistency_loss_fct(logits_student, mask_teacher.long())
 
         if self.current_step == 'validation':
-            self.log('val/consistency_loss', loss, on_epoch=True, sync_dist=True)
+            self.log('val/consistency_loss', loss, on_epoch=True)
 
             if self.current_batch_idx == 0:
                 mask_student = func.logits_to_masks(logits_student)
@@ -165,10 +162,13 @@ class SegFormerLightning(pl.LightningModule):
         return loss, logits_student
 
     def sam_forward(self, inputs, logits_student):
-        loss, consistency_masks, sam_masks = self.sam.forward(inputs, logits_student)
+        self.sam.current_step = self.current_step
+        self.sam.current_batch_idx = self.current_batch_idx
+
+        loss, consistency_masks, sam_masks = self.sam.forward(self, inputs, logits_student)
 
         if self.current_step == 'validation':
-            self.log('val/sam_loss', loss, on_epoch=True, sync_dist=True)
+            self.log('val/sam_loss', loss, on_epoch=True)
 
             if self.current_batch_idx == 0:
                 self.log_sam_images(inputs, consistency_masks, sam_masks)
@@ -243,42 +243,7 @@ class SegFormerLightning(pl.LightningModule):
             )
         })
 
-    def log_input_masks(self, inputs, input_masks_i, classes_i):
-        inputs = self.reshape_tensor(inputs['pixel_values'][0], self.input_image_sizes)
-        inputs = torch.moveaxis(inputs, 0, -1).numpy(force=True)
-        input_masks_i = input_masks_i.numpy(force=True)
 
-        masks = {}
-        class_idx_logged = 0
-        for class_label in range(len(self.class_labels)):
-            if class_label in classes_i:
-                masks[f'input_masks_{class_label}'] = {'mask_data': input_masks_i[class_idx_logged]}
-                class_idx_logged += 1
-            else:
-                masks[f'input_masks_{class_label}'] = {'mask_data': np.zeros(shape=self.input_image_sizes)}
-
-        masks = dict(sorted(masks.items()))
-
-        wandb.log({
-            'val/sam_input_masks': wandb.Image(
-                inputs,
-                masks=masks
-            )
-        })
-
-    @staticmethod
-    def log_output_masks(flatten_inputs, output_masks):
-        inputs = torch.moveaxis(flatten_inputs['pixel_values'][0], 0, -1).numpy(force=True)
-        output_masks = output_masks.numpy(force=True)
-        masks = {f'output_masks_{i}': {'mask_data': output_masks[i]} for i in range(len(output_masks))}
-        masks = dict(sorted(masks.items()))
-
-        wandb.log({
-            'val/sam_output_masks': wandb.Image(
-                inputs,
-                masks=masks
-            )
-        })
 
     def train_dataloader(self):
         return DataLoader(
