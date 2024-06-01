@@ -1,14 +1,13 @@
+import random
+
+import numpy as np
 import torch
+import torch.nn.functional as F
+import wandb
 from transformers import SamModel, SamImageProcessor
 
 from src.utils import func
 from src.utils.cls import Config
-
-import torch.nn.functional as F
-import wandb
-
-import random
-import numpy as np
 
 
 class SamForSemiSupervised:

@@ -243,8 +243,6 @@ class SegFormerLightning(pl.LightningModule):
             )
         })
 
-
-
     def train_dataloader(self):
         return DataLoader(
             dataset=ssp_dataset.make_train_dataset(self.config, self.labeled_tiles, self.unlabeled_tiles),
