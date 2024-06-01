@@ -51,7 +51,7 @@ class SegFormerLightning(pl.LightningModule):
         self.current_batch_idx = None
 
     def forward(self, batch):
-        segmentation_input, segmentation_image, consistency_inputs, consistency_image = batch
+        segmentation_input, consistency_inputs = batch
         self.input_image_sizes = segmentation_input['pixel_values'].shape[-2:]
 
         segmentation_loss = self.segmentation_forward(segmentation_input)
