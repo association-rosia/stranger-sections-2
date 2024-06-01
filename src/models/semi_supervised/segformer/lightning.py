@@ -165,13 +165,13 @@ class SegFormerLightning(pl.LightningModule):
         self.sam.current_step = self.current_step
         self.sam.current_batch_idx = self.current_batch_idx
 
-        loss, consistency_masks, sam_masks = self.sam.forward(inputs, logits_student)
+        loss, consistency_masks, sam_masks = self.sam.forward(inputs[0], logits_student)
 
         if self.current_step == 'validation':
             self.log('val/sam_loss', loss, on_epoch=True)
 
             if self.current_batch_idx == 0:
-                self.log_sam_images(inputs, consistency_masks, sam_masks)
+                self.log_sam_images(inputs[0], consistency_masks, sam_masks)
 
         return loss
 
