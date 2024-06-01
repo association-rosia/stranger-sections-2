@@ -15,6 +15,7 @@ class SamForSemiSupervised:
         self.loss_fct = loss_fct
 
         self.model, self.processor = self.load_model_processor()
+        self.pixel_values_sizes = (1024, 1024)
 
         self.current_step = None
         self.current_batch_idx = None
@@ -30,64 +31,61 @@ class SamForSemiSupervised:
         return loss, consistency_masks, sam_masks
 
     def get_flatten_inputs(self, consistency_masks, inputs):
-        input_masks, pixel_values, classes, indices = [], [], [], []
+        pixel_values, input_points, input_labels, classes, indices = [], [], [], [], []
 
         for i in range(self.config.batch_size):
-            input_masks, input_masks_i, classes, classes_i = self.create_input_masks(
+            input_points_i, input_labels_i, classes_i = self.get_input_points_labels(
                 index=i,
-                consistency_masks=consistency_masks,
-                input_masks=input_masks,
-                classes=classes
+                consistency_masks=consistency_masks
             )
+            input_points.append(input_points_i)
+            input_labels.append(input_labels_i)
+            classes += classes_i
 
-            pixel_values, indices = self.create_pixel_values(
+            pixel_values_i, indices_i = self.create_pixel_values(
                 index=i,
                 input_masks_i=input_masks_i,
-                inputs=inputs,
-                pixel_values=pixel_values,
-                indices=indices
+                inputs=inputs
             )
+            pixel_values.append(pixel_values_i)
+            indices += indices_i
 
             if self.current_step == 'validation' and self.current_batch_idx == 0 and i == 0:
                 self.log_input_masks(inputs, input_masks_i, classes_i)
 
-        flatten_inputs = self.create_flatten_inputs(consistency_masks, input_masks, pixel_values)
+        flatten_inputs = self.create_flatten_inputs(consistency_masks, input_points, pixel_values)
 
         return flatten_inputs, classes, indices
 
-    def create_input_masks(self, index, consistency_masks, input_masks, classes):
-        consistency_masks_i = consistency_masks[index]
-        classes_i = torch.unique(consistency_masks_i).tolist()
-        consistency_masks_i = func.reshape_tensor(consistency_masks_i, size=self.input_masks_sizes)  # TODO
-        input_masks_i = F.one_hot(consistency_masks_i.long(), num_classes=self.config.num_labels)
-        input_masks_i = input_masks_i.to(dtype=torch.float16)
-        input_masks_i = torch.permute(input_masks_i, (2, 0, 1))
-        input_masks_i = input_masks_i[classes_i]
+    def get_input_points_labels(self, index, consistency_masks):
+        consistency_masks = consistency_masks[index]
+        classes = torch.unique(consistency_masks).tolist()
+        consistency_masks = func.reshape_tensor(consistency_masks, size=self.pixel_values_sizes)
 
-        if len(classes_i) > 1 and 0 in classes_i:
-            input_masks_i = input_masks_i[1:]
-            classes_i = classes_i[1:]
-        elif classes_i == [0]:
-            input_masks_i = torch.zeros(
+        input_masks = F.one_hot(consistency_masks.long(), num_classes=self.config.num_labels)
+        input_masks = torch.permute(input_masks, (2, 0, 1))
+        input_masks = input_masks[classes]
+
+        if len(classes) > 1 and 0 in classes:
+            input_masks = input_masks[1:]
+            classes = classes[1:]
+        elif classes == [0]:
+            input_masks = torch.zeros(
                 size=(1, self.input_masks_sizes[0], self.input_masks_sizes[1]),
-                device=consistency_masks_i.device,
-                dtype=consistency_masks_i.dtype
+                device=consistency_masks.device,
+                dtype=consistency_masks.dtype
             )
-            classes_i = [-1]
+            classes = [-1]
 
-        input_masks.append(input_masks_i)
-        classes += classes_i
+        return input_masks, input_masks, classes
 
-        return input_masks, input_masks_i, classes, classes_i
-
-    def create_pixel_values(self, index, input_masks_i, inputs, pixel_values, indices):
+    def create_pixel_values(self, index, input_masks_i, inputs):
         num_masks = len(input_masks_i) if input_masks_i is not None else 1
         pixel_values_i = torch.stack([inputs['pixel_values'][index] for _ in range(num_masks)])
         pixel_values_i = func.reshape_tensor(pixel_values_i, size=())  # TODO
-        pixel_values.append(pixel_values_i)
-        indices += [index for _ in range(num_masks)]
+        indices_i = [index for _ in range(num_masks)]
 
-        return pixel_values, indices
+        return pixel_values_i, indices_i
 
     def create_flatten_inputs(self, consistency_masks, input_masks, pixel_values):
         input_masks = torch.cat(input_masks).unsqueeze(dim=1)
@@ -95,8 +93,12 @@ class SamForSemiSupervised:
         flatten_inputs = self.processor(images=pixel_values, return_tensors='pt')
         flatten_inputs['input_masks'] = input_masks
         flatten_inputs['multimask_output'] = False
-        flatten_inputs = {k: v.to(consistency_masks.device) if isinstance(v, torch.Tensor) else v
-                          for k, v in flatten_inputs.items()}
+
+        flatten_inputs = {
+            k: v.to(consistency_masks.device)
+            if isinstance(v, torch.Tensor) else v
+            for k, v in flatten_inputs.items()
+        }
 
         return flatten_inputs
 
