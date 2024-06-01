@@ -4,21 +4,22 @@ from transformers import SamModel, SamImageProcessor
 from src.utils import func
 from src.utils.cls import Config
 
+import torch.nn.functional as F
+
 
 class SamForSemiSupervised:
     def __init__(self, config: Config, loss_fct):
         self.config = config
         self.loss_fct = loss_fct
 
+        self.model, self.processor = self.load_model_processor()
+
     @torch.no_grad()
     def forward(self, inputs, consistency_logits):
-        inputs, _ = inputs
         consistency_masks = func.logits_to_masks(consistency_logits)
-
-        flatten_inputs, classes, indices = self.get_flatten_inputs(consistency_masks, inputs)
+        flatten_inputs, classes, indices = self.get_flatten_inputs(consistency_masks, inputs[0])
         flatten_outputs = self.sam_predict(flatten_inputs)
         sam_masks = self.post_process_flatten_outputs(flatten_inputs, flatten_outputs, classes, indices)
-
         loss = self.loss_fct(consistency_logits, sam_masks.long())
 
         return loss, consistency_masks, sam_masks
@@ -101,7 +102,7 @@ class SamForSemiSupervised:
         for start_idx in range(0, flatten_inputs_size, self.config.sam_batch_size):
             end_idx = min(start_idx + self.config.sam_batch_size, flatten_inputs_size)
             sam_batch = self.extract_sam_batch(flatten_inputs, start_idx, end_idx)
-            flatten_outputs = self.sam(**sam_batch)
+            flatten_outputs = self.model(**sam_batch)
             pred_masks.append(flatten_outputs.pred_masks)
 
         pred_masks = torch.cat(pred_masks)
@@ -160,7 +161,7 @@ class SamForSemiSupervised:
 
         return sam_masks
 
-    def load_sam(self):
+    def load_model_processor(self):
         with torch.no_grad():
             model = SamModel.from_pretrained(
                 self.config.sam_id

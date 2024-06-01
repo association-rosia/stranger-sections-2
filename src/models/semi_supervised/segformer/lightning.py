@@ -36,16 +36,17 @@ class SegFormerLightning(pl.LightningModule):
 
         self.input_image_sizes = None
 
+        self.segmentation_loss_fct = self.configure_segmentation_loss_fct()
+        self.consistency_loss_fct = CrossEntropyLoss()
+        self.sam_loss_fct = CrossEntropyLoss()
+        self.metrics = self.configure_metrics()
+
         self.student = load_student_model(config)
         self.teacher = load_teacher_model(config)
-        self.sam = SamForSemiSupervised(config, loss_fct=CrossEntropyLoss)
+        self.sam = SamForSemiSupervised(config, loss_fct=self.sam_loss_fct)
 
         self.delta_c, self.delta_s = None, None
         self.update_loss_weights()
-
-        self.segmentation_loss_fct = self.configure_criterion()
-        self.consistency_loss_fct = CrossEntropyLoss()
-        self.metrics = self.configure_metrics()
 
         self.current_step = None
         self.current_batch_idx = None
@@ -102,7 +103,7 @@ class SegFormerLightning(pl.LightningModule):
 
         return [optimizer], [scheduler]
 
-    def configure_criterion(self):
+    def configure_segmentation_loss_fct(self):
         class_labels = self.config.data.class_labels.__dict__
         class_ordered = sorted([int(k) for k in class_labels.keys()])
         label_weights = self.config.data.label_weights.__dict__
