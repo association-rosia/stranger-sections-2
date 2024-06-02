@@ -1,6 +1,7 @@
 import os
 
 import pytorch_lightning as pl
+import torchmetrics as tm
 import src.data.supervised.dataset as spv_dataset
 import torch
 import wandb
@@ -9,7 +10,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 from transformers import Mask2FormerForUniversalSegmentation
 
-import src.data.collate as spv_collate
+from src.data.collate import SS2Mask2formerCollateFn
 from src.data.processor import SS2ImageProcessor
 from src.utils import func
 from src.utils.cls import Config
@@ -21,6 +22,7 @@ class Mask2FormerLightning(pl.LightningModule):
         self.config = config
         self.model = _load_base_model(self.config)
         self.processor = SS2ImageProcessor.get_huggingface_processor(config)
+        self.metrics = self.configure_metrics()
         self.class_labels = {0: 'Background', 1: 'Inertinite', 2: 'Vitrinite', 3: 'Liptinite'}
 
     def forward(self, inputs):
@@ -32,7 +34,7 @@ class Mask2FormerLightning(pl.LightningModule):
         inputs = batch
         outputs = self.forward(inputs)
         loss = outputs['loss']
-        self.log('train/loss', loss, on_epoch=True, sync_dist=True, batch_size=self.config.batch_size)
+        self.log('train/loss', loss, on_epoch=True)
 
         return loss
 
@@ -40,45 +42,58 @@ class Mask2FormerLightning(pl.LightningModule):
         inputs = batch
         outputs = self.forward(inputs)
         loss = outputs['loss']
-        self.log('val/loss', loss, on_epoch=True, sync_dist=True, batch_size=self.config.batch_size)
-
-        if batch_idx == 0:
-            self.log_image(inputs, outputs)
-
+        self.log('val/loss', loss, on_epoch=True)
+        self.validation_log(inputs, outputs, batch_idx)
+        
         return loss
+    
+    def on_validation_epoch_end(self) -> None:
+        metrics = self.metrics.compute()
+        self.log_dict(metrics, on_epoch=True)
+        self.metrics.reset()
 
-    def log_image(self, inputs, outputs):
-        pixel_values = torch.moveaxis(inputs['pixel_values'][0], 0, -1).numpy(force=True)
-        outputs = self.processor.post_process_semantic_segmentation(outputs)
-        outputs = outputs[0].numpy(force=True)
-        ground_truth = self.get_original_mask(inputs['mask_labels'][0])
+    def validation_log(self, inputs, outputs, batch_idx):
+        target_sizes = [self.config.tile_size] * self.config.batch_size
+        masks = self.processor.post_process_semantic_segmentation(outputs, target_sizes)
+        ground_truth = self.inverse_process_mask_labels(inputs)
+        
+        if batch_idx == 0:
+            self.log_image(inputs['pixel_values'][0], ground_truth[0], masks[0])
+
+        self.metrics.update(torch.stack(masks), torch.stack(ground_truth))
+
+    def log_image(self, pixel_values, ground_truth, mask):
+        pixel_values = torch.moveaxis(pixel_values, 0, -1).numpy(force=True)
+        mask = mask.numpy(force=True)
         ground_truth = ground_truth.numpy(force=True)
 
         wandb.log({
-            'val/prediction': wandb.Image(pixel_values, masks={
-                'predictions': {
-                    'mask_data': outputs,
-                    'class_labels': self.class_labels,
-                },
-                'ground_truth': {
-                    'mask_data': ground_truth,
-                    'class_labels': self.class_labels,
+            'val/segmentation': wandb.Image(
+                pixel_values,
+                masks={
+                    'labels': {
+                        'mask_data': ground_truth,
+                        'class_labels': self.class_labels,
+                    },
+                    'predictions': {
+                        'mask_data': mask,
+                        'class_labels': self.class_labels,
+                    }
                 }
-            })
+            )
         })
 
-    @staticmethod
-    def get_original_mask(masks):
-        output_mask = torch.zeros_like(masks[0])
+    def inverse_process_mask_labels(self, inputs):
+        mask_labels = inputs['mask_labels']
+        class_labels = inputs['class_labels']
+        reconstructed_labels = []
+        for masks, labels in zip(mask_labels, class_labels):
+            reconstructed_mask = torch.zeros(masks[0].shape, device=masks[0].device)
+            for binary_mask, label in zip(masks, labels):
+                reconstructed_mask += binary_mask * label
+            reconstructed_labels.append(reconstructed_mask.to(dtype=torch.int8))
 
-        # Iterate through the stacked binary mask tensors
-        for index, mask in enumerate(masks):
-            # Find the indices where the mask is True
-            true_indices = torch.nonzero(mask, as_tuple=False)
-            # Update the output tensor with the corresponding indices
-            output_mask[true_indices[:, 0], true_indices[:, 1]] = index + 1
-
-        return output_mask
+        return reconstructed_labels
 
     def configure_optimizers(self):
         optimizer = AdamW(params=self.model.parameters(), lr=self.config.lr)
@@ -95,6 +110,18 @@ class Mask2FormerLightning(pl.LightningModule):
             'frequency': 1
         }
         return [optimizer], [scheduler]
+    
+    def configure_metrics(self):
+        num_labels = self.config.num_labels
+
+        metrics = tm.MetricCollection({
+            'val/dice-macro': tm.Dice(num_classes=num_labels, average='macro'),
+            'val/dice-micro': tm.Dice(num_classes=num_labels, average='micro'),
+            'val/iou-macro': tm.JaccardIndex(task='multiclass', num_classes=num_labels, average='macro'),
+            'val/iou-micro': tm.JaccardIndex(task='multiclass', num_classes=num_labels, average='micro'),
+        })
+
+        return metrics
 
     def train_dataloader(self):
         return DataLoader(
@@ -104,7 +131,7 @@ class Mask2FormerLightning(pl.LightningModule):
             shuffle=True,
             drop_last=True,
             pin_memory=True,
-            collate_fn=spv_collate.get_collate_fn_training(self.config)
+            collate_fn=SS2Mask2formerCollateFn(self.config, training=True)
         )
 
     def val_dataloader(self):
@@ -115,7 +142,7 @@ class Mask2FormerLightning(pl.LightningModule):
             shuffle=False,
             drop_last=True,
             pin_memory=True,
-            collate_fn=spv_collate.get_collate_fn_training(self.config)
+            collate_fn=SS2Mask2formerCollateFn(self.config, training=True)
         )
 
 
@@ -123,16 +150,13 @@ def _load_base_model(config: Config):
     model = Mask2FormerForUniversalSegmentation.from_pretrained(
         pretrained_model_name_or_path=config.model_id,
         num_labels=config.num_labels,
-        # class_weight=1.0,
-        # mask_weight=1.0,
-        # dice_weight=10.0,
         ignore_mismatched_sizes=True
     )
 
     return model
 
 
-def load_model(config, map_location=None):
+def load_model(config: Config, map_location=None):
     if config.checkpoint is None:
         lightning = Mask2FormerLightning(config)
     else:

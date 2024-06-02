@@ -5,20 +5,25 @@ model_name: 'mask2former'
 model_id: 'facebook/mask2former-swin-large-cityscapes-semantic'
 checkpoint:
 
-do_normalize: true
-size_tile: 384
-contrast_factor:
+do_normalize: false
+contrast_factor: 1
+brightness_factor: 1
+gamma_factor: 1
+hue_factor: 0
+sharpness_factor: 1
+saturation_factor: 1
+
 tile_size: 384
 num_labels: 4
 random_state: 42
 
-devices: [ 0, 1, 2, 3 ]
+devices: [ 2 ] # [ 0, 1, 2, 3 ]
 max_epochs: 100
-batch_size: 2
+batch_size: 4
 num_workers: 23
 val_check_interval: 1.0
 early_stopping_patience: 15
 reduce_lr_on_plateau_patience: 7
 reduce_lr_on_plateau_factor: 0.5
-lr: 0.000005
+lr: 0.00005
 

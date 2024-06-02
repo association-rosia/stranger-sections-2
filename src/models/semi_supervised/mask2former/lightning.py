@@ -45,7 +45,7 @@ class Mask2FormerLightning(pl.LightningModule):
         self.update_loss_weights()
 
         self.segmentation_loss_fct = self.configure_criterion()
-        self.consistency_loss_fct = self.configure_criterion() #SS2Mask2FormerLoss(self.student.config, )
+        self.consistency_loss_fct = self.configure_criterion()
         # self.sam_loss_fct = SS2Mask2FormerLoss(self.student.config)
         
         self.metrics = self.configure_metrics()
@@ -76,7 +76,7 @@ class Mask2FormerLightning(pl.LightningModule):
         self.update_teacher()
 
         dict_loss = {'train/' + k: v for k, v in dict_loss.items()}
-        self.log_dict(dict_loss, on_epoch=True, sync_dist=True)
+        self.log_dict(dict_loss, on_epoch=True)
 
         return dict_loss['train/loss']
 
@@ -85,13 +85,13 @@ class Mask2FormerLightning(pl.LightningModule):
         self.current_batch_idx = batch_idx
         dict_loss = self.forward(*batch)
         dict_loss = {'val/' + k: v for k, v in dict_loss.items()}
-        self.log_dict(dict_loss, on_epoch=True, sync_dist=True)
+        self.log_dict(dict_loss, on_epoch=True)
 
         return dict_loss['val/loss']
 
     def on_validation_epoch_end(self):
         metrics = self.metrics.compute()
-        self.log_dict(metrics, on_epoch=True, sync_dist=True)
+        self.log_dict(metrics, on_epoch=True)
         self.metrics.reset()
 
     def configure_optimizers(self):
@@ -209,7 +209,7 @@ class Mask2FormerLightning(pl.LightningModule):
         class_labels = inputs['class_labels']
         reconstructed_labels = []
         for masks, labels in zip(mask_labels, class_labels):
-            reconstructed_mask = masks[0].clone().detach()
+            reconstructed_mask = torch.zeros(masks[0].shape, device=masks[0].device)
             for binary_mask, label in zip(masks, labels):
                 reconstructed_mask += binary_mask * label
             reconstructed_labels.append(reconstructed_mask.to(dtype=torch.int8))
@@ -281,20 +281,6 @@ class Mask2FormerLightning(pl.LightningModule):
 
         wandb.log({
             'val/sam_input_masks': wandb.Image(
-                inputs,
-                masks=masks
-            )
-        })
-
-    @staticmethod
-    def log_output_masks(flatten_inputs, output_masks):
-        inputs = torch.moveaxis(flatten_inputs['pixel_values'][0], 0, -1).numpy(force=True)
-        output_masks = output_masks.numpy(force=True)
-        masks = {f'output_masks_{i}': {'mask_data': output_masks[i]} for i in range(len(output_masks))}
-        masks = dict(sorted(masks.items()))
-
-        wandb.log({
-            'val/sam_output_masks': wandb.Image(
                 inputs,
                 masks=masks
             )

@@ -4,6 +4,7 @@ from enum import Enum
 import numpy as np
 import torch
 import torchvision.transforms.v2 as tv2T
+import torchvision.transforms.v2.functional as tv2F
 from PIL import Image
 from torchvision import tv_tensors
 from transformers import Mask2FormerImageProcessor, SegformerImageProcessor
@@ -17,6 +18,7 @@ class AugmentationMode(Enum):
     GEOMETRIC = 0
     PHOTOMETRIC = 1
     BOTH = 2
+    CONSTANT_PHOTOMETRIC = 3
 
 
 class SS2ImageProcessor:
@@ -126,7 +128,19 @@ class SS2ImageProcessor:
     @staticmethod
     def _get_none_transforms():
         transforms = [
-            tv2T.Lambda(lambda x: x)
+            tv2T.Lambda(lambda x: tv2F)
+        ]
+
+        return transforms
+    
+    def _get_constant_photometric_transforms(self):
+        transforms = [
+            tv2T.Lambda(lambda x: tv2F.adjust_contrast_image(x, self.config.contrast_factor), tv_tensors.Image),
+            tv2T.Lambda(lambda x: tv2F.adjust_brightness_image(x, self.config.contrast_factor), tv_tensors.Image),
+            tv2T.Lambda(lambda x: tv2F.adjust_gamma_image(x, self.config.gamma_factor), tv_tensors.Image),
+            tv2T.Lambda(lambda x: tv2F.adjust_hue_image(x, self.config.hue_factor), tv_tensors.Image),
+            tv2T.Lambda(lambda x: tv2F.adjust_sharpness_image(x, self.config.sharpness_factor), tv_tensors.Image),
+            tv2T.Lambda(lambda x: tv2F.adjust_saturation_image(x, self.config.saturation_factor), tv_tensors.Image)
         ]
 
         return transforms
@@ -176,6 +190,8 @@ class SS2ImageProcessor:
             transforms.extend(self._get_photometric_transforms())
         elif augmentation_mode == AugmentationMode.BOTH:
             transforms.extend(self._get_both_transforms())
+        elif augmentation_mode == AugmentationMode.CONSTANT_PHOTOMETRIC:
+            transforms.extend(self._get_constant_photometric_transforms())
         else:
             raise ValueError(f"Unknown augmentation_mode: {augmentation_mode}")
 

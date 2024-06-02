@@ -10,7 +10,6 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 from transformers import SegformerForSemanticSegmentation
 
-import src.data.collate as spv_collate
 import src.data.supervised.dataset as spv_dataset
 from src.utils.cls import Config
 
@@ -22,6 +21,12 @@ class SegformerLightning(pl.LightningModule):
         self.model = _load_base_model(self.config)
         self.criterion = self.configure_criterion()
         self.metrics = self.configure_metrics()
+        self.best_metrics = {
+            'best/dice-macro': 0,
+            'best/dice-micro': 0,
+            'best/iou-macro': 0,
+            'best/iou-micro': 0,
+        }
 
     def forward(self, pixel_values, labels=None):
         outputs = self.model(pixel_values=pixel_values, labels=labels)
@@ -38,21 +43,23 @@ class SegformerLightning(pl.LightningModule):
     def training_step(self, batch):
         logits = self.forward(**batch)
         loss = self.criterion(logits, batch['labels'])
-        self.log('train/loss', loss, on_epoch=True, sync_dist=True)
+        self.log('train/loss', loss, on_epoch=True)
 
         return loss
 
     def validation_step(self, batch, batch_idx):
         logits = self.forward(**batch)
         loss = self.criterion(logits, batch['labels'])
-        self.log('val/loss', loss, on_epoch=True, sync_dist=True)
+        self.log('val/loss', loss, on_epoch=True)
         self.validation_log(batch, batch_idx, logits)
 
         return loss
 
     def on_validation_epoch_end(self):
         metrics = self.metrics.compute()
-        self.log_dict(metrics, on_epoch=True, sync_dist=True)
+        self.best_metrics = {k.replace('val', 'best'): max(self.best_metrics[k.replace('val', 'best')], v) for k, v in metrics.items()}
+        self.log_dict(self.best_metrics, on_epoch=True)
+        self.log_dict(metrics, on_epoch=True)
         self.metrics.reset()
 
     def configure_optimizers(self):
@@ -106,17 +113,21 @@ class SegformerLightning(pl.LightningModule):
         class_labels = self.config.data.class_labels.__dict__
         class_labels = {int(k): v for k, v in class_labels.items()}
 
-        wandb.log(
-            {'val/prediction': wandb.Image(image, masks={
-                'predictions': {
-                    'mask_data': pred_mask,
-                    'class_labels': class_labels,
-                },
-                'ground_truth': {
-                    'mask_data': ground_truth,
-                    'class_labels': class_labels,
+        wandb.log({
+            'val/segmentation': wandb.Image(
+                image,
+                masks={
+                    'labels': {
+                        'mask_data': ground_truth,
+                        'class_labels': class_labels,
+                    },
+                    'predictions': {
+                        'mask_data': pred_mask,
+                        'class_labels': class_labels,
+                    }
                 }
-            })})
+            )
+        })
 
     def train_dataloader(self):
         return DataLoader(
@@ -125,8 +136,7 @@ class SegformerLightning(pl.LightningModule):
             num_workers=self.config.num_workers,
             shuffle=True,
             drop_last=True,
-            pin_memory=True,
-            collate_fn=spv_collate.get_collate_fn_training(self.config)
+            pin_memory=True
         )
 
     def val_dataloader(self):
@@ -136,8 +146,7 @@ class SegformerLightning(pl.LightningModule):
             num_workers=self.config.num_workers,
             shuffle=False,
             drop_last=True,
-            pin_memory=True,
-            collate_fn=spv_collate.get_collate_fn_training(self.config)
+            pin_memory=True
         )
 
 

@@ -1,6 +1,6 @@
 from torch.utils.data import Dataset
-
-from src.data.processor import SS2ImageProcessor, make_training_processor, make_eval_processor
+import torch
+from src.data.processor import SS2ImageProcessor, make_training_processor, make_eval_processor, AugmentationMode
 from src.data.tiling import Tiler
 from src.utils import func
 from src.utils.cls import Config
@@ -19,7 +19,20 @@ class SS2SupervisedDataset(Dataset):
     def __getitem__(self, idx):
         image = func.load_supervised_image(self.config, self.tiles[idx])
         label = func.load_label(self.config, self.tiles[idx])
-        inputs = self.processor.preprocess(image, label)
+        inputs = self.processor.preprocess(
+            image,
+            label,
+            augmentation_mode=AugmentationMode.CONSTANT_PHOTOMETRIC
+        )
+
+        inputs = self.adjust_shape(inputs)
+        inputs['pixel_values'] = inputs['pixel_values'].to(dtype=torch.float16)
+
+        return inputs
+
+    @staticmethod
+    def adjust_shape(inputs):
+        inputs = {k: v.squeeze() if isinstance(v, torch.Tensor) else v[0] for k, v in inputs.items()}
 
         return inputs
 
