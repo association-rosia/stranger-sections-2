@@ -75,11 +75,14 @@ class SS2ImageProcessor:
         images_processed, masks_processed = [], []
 
         for image, mask in zip(images, masks):
-            image_processed, mask_processed = transforms(
-                tv_tensors.Image(image),
-                tv_tensors.Mask(mask)
-            )
-
+            image = tv_tensors.Image(image)
+            mask = tv_tensors.Mask(mask)
+            image_processed, mask_processed = transforms(image, mask)
+            # * To alwais keep multiple labels on a mask
+            if len(torch.unique(mask_processed)) == 1:
+                image_processed = image
+                mask_processed = mask
+            
             image_processed = torch.clamp(image_processed, min=0, max=1)
             image_processed = image_processed.to(dtype=torch.float16)
             images_processed.append(image_processed)
