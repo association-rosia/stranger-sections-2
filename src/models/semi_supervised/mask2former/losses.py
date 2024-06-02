@@ -16,13 +16,13 @@ class SS2Mask2FormerLoss(torch.nn.Module):
         self.mask2former_loss = Mask2FormerLoss(config, weight_dict)
         self.weight_dict = weight_dict
         # Replace the empty_weight from Mask2FormerLoss by our config weight
-        self.eos_coef = config.no_object_weight
-        empty_weight = torch.ones(self.mask2former_loss.num_labels + 1)
-        empty_weight[-1] = self.eos_coef
+        # self.eos_coef = config.no_object_weight
+        # empty_weight = torch.ones(self.mask2former_loss.num_labels + 1)
+        # empty_weight[-1] = self.eos_coef
         
-        if weight is not None:
-            empty_weight[:-1] = weight
-        self.mask2former_loss.register_buffer("empty_weight", empty_weight)
+        # if weight is not None:
+        #     empty_weight[:-1] = weight
+        # self.mask2former_loss.register_buffer("empty_weight", empty_weight)
 
     def forward(
         self,

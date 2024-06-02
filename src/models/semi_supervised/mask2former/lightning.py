@@ -165,44 +165,44 @@ class Mask2FormerLightning(pl.LightningModule):
     def consistency_forward(self, inputs_student, inputs_teacher):
         target_sizes = [self.config.tile_size] * self.config.batch_size
 
-        outputs_s = self.student.forward(
+        outputs_student = self.student.forward(
             pixel_values=inputs_student['pixel_values'],
             pixel_mask=inputs_student['pixel_mask'],
             output_auxiliary_logits=True
         )
 
-        outputs_t = self.teacher.forward(
+        outputs_teacher = self.teacher.forward(
             pixel_values=inputs_teacher['pixel_values'],
             pixel_mask=inputs_teacher['pixel_mask']
         )
 
-        outputs_processed_t = self.processor.post_process_semantic_segmentation(outputs_t, target_sizes=target_sizes)
-        masks_t = torch.stack(outputs_processed_t)
+        outputs_processed_t = self.processor.post_process_semantic_segmentation(outputs_teacher, target_sizes=target_sizes)
+        masks_teacher = torch.stack(outputs_processed_t)
 
         if self.current_step == 'validation' and self.current_batch_idx == 0:
-            outputs_processed_s = self.processor.post_process_semantic_segmentation(outputs_t, target_sizes=target_sizes)
-            masks_s = torch.stack(outputs_processed_s)
+            outputs_processed_student = self.processor.post_process_semantic_segmentation(outputs_teacher, target_sizes=target_sizes)
+            masks_student = torch.stack(outputs_processed_student)
 
-            self.log_consistency_images(inputs_student, masks_s, 'student')
-            self.log_consistency_images(inputs_teacher, masks_t, 'teacher')
+            self.log_consistency_images(inputs_student, masks_student, 'student')
+            self.log_consistency_images(inputs_teacher, masks_teacher, 'teacher')
 
         mask_labels, class_labels = [], []
-        for mask_t in masks_t:
-            device = mask_t.device
-            mask_t = mask_t.numpy(force=True)
-            binary_masks, labels = self.processor.convert_segmentation_map_to_binary_masks(mask_t)
+        for mask_teacher in masks_teacher:
+            device = mask_teacher.device
+            mask_teacher = mask_teacher.numpy(force=True)
+            binary_masks, labels = self.processor.convert_segmentation_map_to_binary_masks(mask_teacher)
             mask_labels.append(torch.from_numpy(binary_masks).to(device=device))
             class_labels.append(torch.from_numpy(labels).to(device=device))
 
         consistency_loss = self.consistency_loss_fct(
-            masks_queries_logits=outputs_s.masks_queries_logits,
-            class_queries_logits=outputs_s.class_queries_logits,
+            masks_queries_logits=outputs_student.masks_queries_logits,
+            class_queries_logits=outputs_student.class_queries_logits,
             mask_labels=mask_labels,
             class_labels=class_labels,
-            auxiliary_predictions=outputs_s.auxiliary_logits,
+            auxiliary_predictions=outputs_student.auxiliary_logits,
         )
 
-        return consistency_loss, outputs_s
+        return consistency_loss, outputs_student
     
     def inverse_process_mask_labels(self, inputs):
         mask_labels = inputs['mask_labels']
