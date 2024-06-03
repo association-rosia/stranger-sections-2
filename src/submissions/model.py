@@ -6,7 +6,7 @@ from typing_extensions import Self
 
 from src.data.tiling import Tiler
 from src.models.train_model import load_model
-from src.utils.cls import Config
+from src.utils.cls import Config, ModelName, TrainingMode
 
 
 class SS2InferenceModel(torch.nn.Module):
@@ -57,15 +57,17 @@ class SS2InferenceModel(torch.nn.Module):
         return processor.make_inference_processor(self.config)
         
     def _get_base_model_forward(self):
-        if self.config.model_name == 'mask2former':
+        if self.config.model_name == ModelName.MASK2FORMER:
             return self._mask2former_forward
-        if self.config.model_name == 'segformer':
+        if self.config.model_name == ModelName.SEGFORMER:
             return self._segformer_forward
         else:
-            raise ValueError(f"model_name expected 'mask2former' but received {self.config.model_name}")
+            raise NotImplementedError
 
     def _get_collate(self):
-        return collate.get_collate_fn_inference(self.config)
+        if self.config.model_name == ModelName.MASK2FORMER:
+            return collate.SS2Mask2formerCollateFn(self.config, training=False)
+        return 
         
     def _get_tile_size(self, tile_size):
         if self.tiling:

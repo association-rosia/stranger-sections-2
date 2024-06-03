@@ -13,7 +13,7 @@ from src.utils.cls import Config
 
 def main():
     base_config = func.load_config('main')
-    wandb_run = func.get_run('o6e33l2t')
+    wandb_run = func.get_run('a9io2gas')
     submission_name = f'{wandb_run.name}-{wandb_run.id}'
 
     for checkpoint_type, tiling in product(['metric'], [True]):

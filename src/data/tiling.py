@@ -67,7 +67,7 @@ class Tiler:
                 x0, y0, x1, y1 = bbox
                 cropped_npy_data = npy_data[x0:x1, y0:y1]
 
-                if len(np.unique(cropped_npy_data).tolist()) > 1:
+                if len(np.unique(cropped_npy_data)) > 1:
                     tiles.append({'image': image, 'bbox': bbox})
 
         return tiles

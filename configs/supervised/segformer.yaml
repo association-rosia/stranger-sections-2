@@ -5,13 +5,13 @@ model_name: 'segformer'
 model_id: 'nvidia/segformer-b0-finetuned-ade-512-512'
 checkpoint:
 
-do_normalize: true
+do_normalize: false
 contrast_factor:
 tile_size: 512
 num_labels: 4
 random_state: 42
 
-devices: [ 0 ]
+devices: [ 1 ]
 max_epochs: 100
 batch_size: 16
 num_workers: 23
