@@ -150,8 +150,8 @@ class SS2ImageProcessor:
             # tv2T.RandomPosterize(bits=5, p=0.1),
             # tv2T.RandomSolarize(threshold=0.75, p=0.1),
             # tv2T.RandomAdjustSharpness(sharpness_factor=1.5, p=0.2),
-            tv2T.RandomAutocontrast(p=0.2),
-            tv2T.RandomEqualize(p=0.2)
+            # tv2T.RandomAutocontrast(p=0.2),
+            # tv2T.RandomEqualize(p=0.2)
         ]
 
         return transforms

@@ -181,7 +181,7 @@ class SegFormerLightning(pl.LightningModule):
         self.delta_s = 0.1 * math.exp(-5 * (current_epoch / self.config.max_epochs))
 
     @torch.no_grad()
-    def update_teacher(self, teacher_momentum=0.994):
+    def update_teacher(self, teacher_momentum=0.999):
         for teacher_param, student_param in zip(self.teacher.parameters(), self.student.parameters()):
             teacher_param.data = teacher_momentum * teacher_param.data + (1 - teacher_momentum) * student_param.data
 
