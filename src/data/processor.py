@@ -161,14 +161,7 @@ class SS2ImageProcessor:
     def _get_photometric_transforms():
         transforms = [
             tv2T.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.05),
-            tv2T.GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 1.0)),
-            # tv2T.RandomGrayscale(p=0.05),
-            # tv2T.RandomInvert(p=0.05),
-            # tv2T.RandomPosterize(bits=5, p=0.1),
-            # tv2T.RandomSolarize(threshold=0.75, p=0.1),
-            # tv2T.RandomAdjustSharpness(sharpness_factor=1.5, p=0.2),
-            tv2T.RandomAutocontrast(p=0.2),
-            tv2T.RandomEqualize(p=0.2)
+            tv2T.GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 1.0))
         ]
 
         return transforms
