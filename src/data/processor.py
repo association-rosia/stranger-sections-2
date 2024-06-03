@@ -128,7 +128,7 @@ class SS2ImageProcessor:
     @staticmethod
     def _get_none_transforms():
         transforms = [
-            tv2T.Lambda(lambda x: tv2F)
+            tv2T.Lambda(lambda x: x)
         ]
 
         return transforms

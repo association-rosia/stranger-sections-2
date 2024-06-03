@@ -65,7 +65,9 @@ class SS2InferenceModel(torch.nn.Module):
             raise NotImplementedError
 
     def _get_collate(self):
-        return collate.get_collate_fn_inference(self.config)
+        if self.config.model_name == ModelName.MASK2FORMER:
+            return collate.SS2Mask2formerCollateFn(self.config, training=False)
+        return 
         
     def _get_tile_size(self, tile_size):
         if self.tiling:

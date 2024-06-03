@@ -1,17 +1,17 @@
 from torch.utils.data import Dataset
 import torch
-from src.data.processor import SS2ImageProcessor, make_training_processor, make_eval_processor, AugmentationMode
+from src.data.processor import SS2ImageProcessor, AugmentationMode
 from src.data.tiling import Tiler
 from src.utils import func
 from src.utils.cls import Config
 
 
 class SS2SupervisedDataset(Dataset):
-    def __init__(self, config: Config, tiles: list, processor: SS2ImageProcessor):
+    def __init__(self, config: Config, tiles: list):
         super().__init__()
         self.config = config
         self.tiles = tiles
-        self.processor = processor
+        self.processor = SS2ImageProcessor(self.config, AugmentationMode.CONSTANT_PHOTOMETRIC)
 
     def __len__(self) -> int:
         return len(self.tiles)
@@ -19,11 +19,7 @@ class SS2SupervisedDataset(Dataset):
     def __getitem__(self, idx):
         image = func.load_supervised_image(self.config, self.tiles[idx])
         label = func.load_label(self.config, self.tiles[idx])
-        inputs = self.processor.preprocess(
-            image,
-            label,
-            augmentation_mode=AugmentationMode.CONSTANT_PHOTOMETRIC
-        )
+        inputs = self.processor.preprocess(image, label)
 
         inputs = self.adjust_shape(inputs)
         inputs['pixel_values'] = inputs['pixel_values'].to(dtype=torch.float16)
@@ -41,23 +37,21 @@ def make_train_dataset(config: Config) -> SS2SupervisedDataset:
     tiler = Tiler(config)
     tiles = tiler.build(config)
     train_tiles, _ = func.train_val_split_tiles(config, tiles)
-    processor = make_training_processor(config)
 
-    return SS2SupervisedDataset(config, train_tiles, processor)
+    return SS2SupervisedDataset(config, train_tiles)
 
 
 def make_val_dataset(config: Config) -> SS2SupervisedDataset:
     tiler = Tiler(config)
     tiles = tiler.build(config)
     _, val_tiles = func.train_val_split_tiles(config, tiles)
-    processor = make_eval_processor(config)
 
-    return SS2SupervisedDataset(config, val_tiles, processor)
+    return SS2SupervisedDataset(config, val_tiles)
 
 
 def _debug():
     from torch.utils.data import DataLoader
-    from src.data.collate import get_collate_fn_training
+    from src.data.collate import SS2Mask2formerCollateFn
 
     config = func.load_config('main')
     wandb_config = func.load_config('segformer', 'supervised')
@@ -69,7 +63,7 @@ def _debug():
     train_dataloader = DataLoader(
         dataset=train_dataset,
         batch_size=12,
-        collate_fn=get_collate_fn_training(config)
+        collate_fn=SS2Mask2formerCollateFn(config)
     )
 
     for batch in train_dataloader:
