@@ -18,15 +18,23 @@ class AugmentationMode(Enum):
     GEOMETRIC = 0
     PHOTOMETRIC = 1
     BOTH = 2
-    CONSTANT_PHOTOMETRIC = 3
+
+class PreprocessingMode(Enum):
+    NONE = -1
+    PHOTOMETRIC = 0
 
 
 class SS2ImageProcessor:
-    def __init__(self, config: Config, augmentation_mode: AugmentationMode = AugmentationMode.NONE) -> None:
+    def __init__(self,
+                 config: Config,
+                 augmentation_mode: AugmentationMode = AugmentationMode.NONE,
+                 preprocessing_mode: PreprocessingMode = PreprocessingMode.NONE
+                 ) -> None:
         self.config = config
         self.augmentation_mode = augmentation_mode
+        self.preprocessing_mode = preprocessing_mode
         self.huggingface_processor = self.get_huggingface_processor(config)
-        self.transforms = self._get_transforms(augmentation_mode)
+        self.transforms = self._get_transforms(augmentation_mode, preprocessing_mode)
 
     def preprocess(self,
                    images: np.ndarray | list[np.ndarray],
@@ -124,14 +132,6 @@ class SS2ImageProcessor:
             raise ValueError(f"Unknown model_name: {config.model_name}")
 
         return processor
-
-    @staticmethod
-    def _get_none_transforms():
-        transforms = [
-            tv2T.Lambda(lambda x: x)
-        ]
-
-        return transforms
     
     def _get_constant_photometric_transforms(self):
         transforms = [
@@ -172,19 +172,21 @@ class SS2ImageProcessor:
 
         return [*geometric_transforms, *photometric_transforms]
 
-    def _get_transforms(self, augmentation_mode: AugmentationMode) -> tv2T.Compose:
+    def _get_transforms(self,
+                        augmentation_mode: AugmentationMode,
+                        preprocessing_mode: PreprocessingMode
+                        ) -> tv2T.Compose:
         transforms = [tv2T.ToDtype(dtype=torch.float32, scale=True)]
 
-        if augmentation_mode == AugmentationMode.NONE:
-            transforms.extend(self._get_none_transforms())
-        elif augmentation_mode == AugmentationMode.GEOMETRIC:
+        if preprocessing_mode == PreprocessingMode.PHOTOMETRIC:
+           transforms.extend(self._get_constant_photometric_transforms())
+
+        if augmentation_mode == AugmentationMode.GEOMETRIC:
             transforms.extend(self._get_geometric_transforms())
         elif augmentation_mode == AugmentationMode.PHOTOMETRIC:
             transforms.extend(self._get_photometric_transforms())
         elif augmentation_mode == AugmentationMode.BOTH:
             transforms.extend(self._get_both_transforms())
-        elif augmentation_mode == AugmentationMode.CONSTANT_PHOTOMETRIC:
-            transforms.extend(self._get_constant_photometric_transforms())
         else:
             raise ValueError(f"Unknown augmentation_mode: {augmentation_mode}")
 

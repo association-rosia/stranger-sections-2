@@ -1,6 +1,6 @@
 from torch.utils.data import Dataset
 import torch
-from src.data.processor import SS2ImageProcessor, AugmentationMode
+from src.data.processor import SS2ImageProcessor, AugmentationMode, PreprocessingMode
 from src.data.tiling import Tiler
 from src.utils import func
 from src.utils.cls import Config
@@ -11,7 +11,11 @@ class SS2SupervisedDataset(Dataset):
         super().__init__()
         self.config = config
         self.tiles = tiles
-        self.processor = SS2ImageProcessor(self.config, AugmentationMode.CONSTANT_PHOTOMETRIC)
+        self.processor = SS2ImageProcessor(
+            self.config,
+            preprocessing_mode=PreprocessingMode.NONE,
+            augmentation_mode=AugmentationMode.PHOTOMETRIC
+        )
 
     def __len__(self) -> int:
         return len(self.tiles)
