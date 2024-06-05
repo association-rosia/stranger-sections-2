@@ -29,7 +29,6 @@ class TestTimeAugmenter:
         self.geometric_transform = self._get_geometric_transforms()
         self.params = [t.params for t in self.geometric_transform]
         self.product = list(itertools.product(*self.params))
-        self.delist = self.geometric_transform[::-1]
         self.k = k
         self.return_probs = return_probs
         self.random_state = random_state
