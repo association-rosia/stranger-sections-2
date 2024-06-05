@@ -11,6 +11,8 @@ from sklearn.model_selection import train_test_split
 import torch.nn.functional as F
 
 from src.utils.cls import Config
+import time
+from functools import wraps
 
 
 def reshape_tensor(tensor, size):
@@ -168,3 +170,16 @@ def save_array_image(array, name):
     os.makedirs(os.path.join('logs', 'plots'), exist_ok=True)
     plt.imshow(array)
     plt.savefig(os.path.join('logs', 'plots', name))
+
+
+def processing_time(function):
+    @wraps(function)
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        result = function(*args, **kwargs)
+        end_time = time.time()
+        print(f"Processing time for {function.__name__}: {end_time - start_time:.4f} seconds")
+
+        return result
+
+    return wrapper
