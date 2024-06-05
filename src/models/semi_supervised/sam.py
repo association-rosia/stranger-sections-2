@@ -262,14 +262,14 @@ class SamForSemiSupervised:
     def log_input_masks(self, images_i, input_masks_i, input_points_i, input_labels_i, classes_i):
         image = images_i[0]
         image = torch.moveaxis(image, 0, -1).numpy(force=True)
-        input_masks_i = input_masks_i.numpy(force=True)
+        # input_masks_i = input_masks_i.numpy(force=True)
 
         masks = {}
         images_w_points = []
         class_idx_logged = 0
         for class_label in range(len(self.class_labels)):
             if class_label in classes_i:
-                masks[f'input_masks_{class_label}'] = {'mask_data': input_masks_i[class_idx_logged]}
+                # masks[f'input_masks_{class_label}'] = {'mask_data': input_masks_i[class_idx_logged]}
 
                 images_w_points.append(self.show_points_on_image(
                     image=image,
@@ -279,7 +279,7 @@ class SamForSemiSupervised:
 
                 class_idx_logged += 1
             else:
-                masks[f'input_masks_{class_label}'] = {'mask_data': np.zeros(shape=self.images_sizes)}
+                # masks[f'input_masks_{class_label}'] = {'mask_data': np.zeros(shape=self.images_sizes)}
 
                 images_w_points.append(self.show_points_on_image(
                     image=image,
@@ -287,14 +287,12 @@ class SamForSemiSupervised:
                     input_labels=None
                 ))
 
-        masks = dict(sorted(masks.items()))
-
-        wandb.log({
-            'val/sam_input_masks': wandb.Image(
-                image,
-                masks=masks
-            )
-        })
+        # wandb.log({
+        #     'val/sam_input_masks': wandb.Image(
+        #         image,
+        #         masks=dict(sorted(masks.items()))
+        #     )
+        # })
 
         wandb.log({
             'val/sam_input_points': images_w_points
