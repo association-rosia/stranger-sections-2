@@ -51,12 +51,15 @@ class TestTimeAugmenter:
 
     def _select_parameters(self) -> list:
         if isinstance(self.k, int):
-            random_parameters = self.numpy_random.choice(
-                np.arange(1, len(self.product)),
-                size=self.k-1,
-                replace=False
-            )
-            parameters = [self.product[index_parameter] for index_parameter in random_parameters]
+            if self.k == 1:
+                parameters = [self.product[0]]
+            else:
+                random_parameters = self.numpy_random.choice(
+                    np.arange(1, len(self.product)),
+                    size=self.k-1,
+                    replace=False
+                )
+                parameters = [self.product[index_parameter] for index_parameter in random_parameters]
         elif self.k == 'max':
             parameters = self.product
         else:
