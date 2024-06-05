@@ -22,6 +22,7 @@ class SamForSemiSupervised:
 
         self.model, self.processor = self.load_model_processor()
         self.images_sizes = (1024, 1024)
+        self.value_to_label = {0: -1, 1: 1}
 
         self.current_step = None
         self.current_batch_idx = None
@@ -108,13 +109,13 @@ class SamForSemiSupervised:
             input_points_1, input_labels_1 = self.get_random_points(
                 valid_points_1,
                 num_points_1,
-                labels=1
+                value=1
             )
 
             input_points_0, input_labels_0 = self.get_random_points(
                 valid_points_0,
                 num_points_0,
-                labels=0
+                value=0
             )
 
             input_points.append([input_points_1 + input_points_0])
@@ -144,11 +145,10 @@ class SamForSemiSupervised:
 
         return rate
 
-    @staticmethod
-    def get_random_points(valid_points, num_points, labels):
+    def get_random_points(self, valid_points, num_points, value):
         if num_points > 0:
             random_points = random.sample(valid_points, k=num_points)
-            labels_points = [labels for _ in range(len(random_points))]
+            labels_points = [self.value_to_label[value] for _ in range(len(random_points))]
         else:
             random_points = []
             labels_points = []
@@ -166,8 +166,7 @@ class SamForSemiSupervised:
         mask = (mask == kernel.sum()).float()
         mask = mask.squeeze(0).squeeze(0)
 
-        coordinates = (mask == 1).nonzero(as_tuple=False)
-        coordinates = coordinates[:, [1, 0]].tolist()
+        coordinates = (mask == 1).nonzero(as_tuple=False).tolist()
 
         return coordinates
 
@@ -220,7 +219,7 @@ class SamForSemiSupervised:
 
         return sam_batch
 
-    def post_process_outputs(self, inputs, outputs, classes, batch_idx):
+    def post_process_outputs(self, inputs, outputs, classes, batch_idx):  # TODO: verify mask merging
         pred_masks = []
 
         masks = self.processor.image_processor.post_process_masks(
@@ -262,14 +261,14 @@ class SamForSemiSupervised:
     def log_input_masks(self, images_i, input_masks_i, input_points_i, input_labels_i, classes_i):
         image = images_i[0]
         image = torch.moveaxis(image, 0, -1).numpy(force=True)
-        # input_masks_i = input_masks_i.numpy(force=True)
+        input_masks_i = input_masks_i.numpy(force=True)
 
         masks = {}
         images_w_points = []
         class_idx_logged = 0
         for class_label in range(len(self.class_labels)):
             if class_label in classes_i:
-                # masks[f'input_masks_{class_label}'] = {'mask_data': input_masks_i[class_idx_logged]}
+                masks[f'input_masks_{class_label}'] = {'mask_data': input_masks_i[class_idx_logged]}
 
                 images_w_points.append(self.show_points_on_image(
                     image=image,
@@ -279,7 +278,7 @@ class SamForSemiSupervised:
 
                 class_idx_logged += 1
             else:
-                # masks[f'input_masks_{class_label}'] = {'mask_data': np.zeros(shape=self.images_sizes)}
+                masks[f'input_masks_{class_label}'] = {'mask_data': np.zeros(shape=self.images_sizes)}
 
                 images_w_points.append(self.show_points_on_image(
                     image=image,
@@ -287,29 +286,31 @@ class SamForSemiSupervised:
                     input_labels=None
                 ))
 
-        # wandb.log({
-        #     'val/sam_input_masks': wandb.Image(
-        #         image,
-        #         masks=dict(sorted(masks.items()))
-        #     )
-        # })
+        wandb.log({
+            'val/sam_input_masks': wandb.Image(
+                image,
+                masks=dict(sorted(masks.items()))
+            )
+        })
 
         wandb.log({
             'val/sam_input_points': images_w_points
         })
 
-    @staticmethod
-    def show_points_on_image(image, input_points, input_labels):
+    def show_points_on_image(self, image, input_points, input_labels):
         plt.figure(figsize=(10, 10))
         plt.imshow(image.astype(np.float32))
 
         if input_points is not None and input_labels is not None:
-            pos_points = input_points[input_labels == 1]
-            neg_points = input_points[input_labels == 0]
+            pos_points = input_points[input_labels == self.value_to_label[1]]
+            print('pos_points', pos_points)
+
+            neg_points = input_points[input_labels == self.value_to_label[0]]
+            print('neg_points', neg_points)
 
             marker_size = 400
-            plt.scatter(pos_points[:, 0], pos_points[:, 1], color='#40E0D0', marker='o', s=marker_size)
-            plt.scatter(neg_points[:, 0], neg_points[:, 1], color='#FFC0CA', marker='o', s=marker_size)
+            plt.scatter(pos_points[:, 1], pos_points[:, 0], color='#40E0D0', marker='o', s=marker_size)
+            plt.scatter(neg_points[:, 1], neg_points[:, 0], color='#FFC0CA', marker='o', s=marker_size)
 
         plt.gca().set_axis_off()
         plt.subplots_adjust(top=1, bottom=0, right=1, left=0, hspace=0, wspace=0)
