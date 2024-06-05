@@ -45,7 +45,10 @@ class TestTimeAugmenter:
         return Compose(transforms)
     
     def _get_geometric_transforms(augmentation_mode: AugmentationMode) -> list[GeometricAugmentation]:
-        return [HorizontalFlip(), VerticalFlip(), Rotate()]
+        # Only Rotation of 0 and 90 to avoid duplicate combination:
+        # Rotation 90 + HorizontalFlip + VerticalFlip <=> Rotation 270
+        # HorizontalFlip + VerticalFlip <=> Rotation 180
+        return [HorizontalFlip(), VerticalFlip(), Rotate([0, 90])]
 
     def _select_parameters(self) -> list:
         if isinstance(self.k, int):
