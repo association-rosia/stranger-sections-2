@@ -34,7 +34,7 @@ class SS2ImageProcessor:
         self.augmentation_mode = augmentation_mode
         self.preprocessing_mode = preprocessing_mode
         self.huggingface_processor = self.get_huggingface_processor(config)
-        self.transforms = self._get_transforms(augmentation_mode, preprocessing_mode)
+        self.transforms = self.get_transforms(augmentation_mode, preprocessing_mode)
 
     def preprocess(self,
                    images: np.ndarray | list[np.ndarray],
@@ -46,7 +46,7 @@ class SS2ImageProcessor:
         if augmentation_mode is None:
             transforms = self.transforms
         else:
-            transforms = self._get_transforms(augmentation_mode)
+            transforms = self.get_transforms(augmentation_mode)
 
         images = self._numpy_to_list(images)
         labels = self._numpy_to_list(labels)
@@ -172,16 +172,22 @@ class SS2ImageProcessor:
 
         return [*geometric_transforms, *photometric_transforms]
 
-    def _get_transforms(self,
+    def get_transforms(self,
                         augmentation_mode: AugmentationMode,
                         preprocessing_mode: PreprocessingMode
                         ) -> tv2T.Compose:
         transforms = [tv2T.ToDtype(dtype=torch.float32, scale=True)]
 
-        if preprocessing_mode == PreprocessingMode.PHOTOMETRIC:
+        if preprocessing_mode == PreprocessingMode.NONE:
+            pass
+        elif preprocessing_mode == PreprocessingMode.PHOTOMETRIC:
            transforms.extend(self._get_constant_photometric_transforms())
+        else:
+            raise ValueError(f"Unknown preprocessing_mode: {preprocessing_mode}")
 
-        if augmentation_mode == AugmentationMode.GEOMETRIC:
+        if augmentation_mode == AugmentationMode.NONE:
+            pass
+        elif augmentation_mode == AugmentationMode.GEOMETRIC:
             transforms.extend(self._get_geometric_transforms())
         elif augmentation_mode == AugmentationMode.PHOTOMETRIC:
             transforms.extend(self._get_photometric_transforms())
@@ -193,26 +199,14 @@ class SS2ImageProcessor:
         return tv2T.Compose(transforms)
 
 
-def make_training_processor(config: Config):
-    return SS2ImageProcessor(config, AugmentationMode.NONE)
-
-
-def make_eval_processor(config: Config):
-    return SS2ImageProcessor(config, AugmentationMode.NONE)
-
-
-def make_inference_processor(config: Config):
-    return SS2ImageProcessor(config, AugmentationMode.NONE)
-
-
 def _debug():
     config = func.load_config('main')
     wandb_config = func.load_config('mask2former', 'supervised')
     config = Config(config, wandb_config)
 
-    train_preprocessor = make_training_processor(config)
-    eval_preprocessor = make_eval_processor(config)
-    inf_preprocessor = make_inference_processor(config)
+    train_preprocessor = SS2ImageProcessor(config, AugmentationMode.NONE)
+    eval_preprocessor = SS2ImageProcessor(config, AugmentationMode.NONE)
+    inf_preprocessor = SS2ImageProcessor(config, AugmentationMode.NONE)
 
     path_img = os.path.join(config.path.data.raw.train.labeled, '17gw5j.JPG')
     img = np.array(Image.open(path_img).convert('RGB'))

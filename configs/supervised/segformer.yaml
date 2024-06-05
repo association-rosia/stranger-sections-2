@@ -6,7 +6,14 @@ model_id: 'nvidia/segformer-b0-finetuned-ade-512-512'
 checkpoint:
 
 do_normalize: false
-contrast_factor:
+contrast_factor: 1
+brightness_factor: 1
+gamma_factor: 1
+hue_factor: 0
+sharpness_factor: 1
+saturation_factor: 1
+
+
 tile_size: 512
 num_labels: 4
 random_state: 42
