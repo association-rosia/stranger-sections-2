@@ -75,10 +75,9 @@ class TestTimeAugmenter:
         return tta_mask
 
     def augment(self, image: torch.Tensor):
-        
         tta_parameters = self._select_parameters()
         self.queue.append(tta_parameters)
-        augmented_images = [image]
+        augmented_images = []
 
         for parameters in tta_parameters:
             augmented_image = torch.clone(image)
@@ -91,7 +90,7 @@ class TestTimeAugmenter:
     
     def deaugment(self, masks: list):
         tta_parameters = self.queue.popleft()
-        deaugmented_masks = [masks.pop(0)]
+        deaugmented_masks = []
         for deaugmented_mask, parameters in zip(masks, tta_parameters):
             for augmentation, parameter in zip(self.geometric_transform[::-1], parameters[::-1]):
                 deaugmented_mask = augmentation.deaugment(deaugmented_mask, parameter)

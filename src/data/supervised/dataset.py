@@ -13,8 +13,8 @@ class SS2SupervisedDataset(Dataset):
         self.tiles = tiles
         self.processor = SS2ImageProcessor(
             self.config,
-            preprocessing_mode=PreprocessingMode.NONE,
-            augmentation_mode=AugmentationMode.PHOTOMETRIC
+            preprocessing_mode=PreprocessingMode.PHOTOMETRIC,
+            augmentation_mode=AugmentationMode.NONE
         )
 
     def __len__(self) -> int:
