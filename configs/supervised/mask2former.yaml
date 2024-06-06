@@ -17,7 +17,7 @@ tile_size: 384
 num_labels: 4
 random_state: 42
 
-devices: [ 2 ] # [ 0, 1, 2, 3 ]
+devices: [ 1 ] # [ 0, 1, 2, 3 ]
 max_epochs: 100
 batch_size: 4
 num_workers: 23
@@ -26,4 +26,3 @@ early_stopping_patience: 15
 reduce_lr_on_plateau_patience: 7
 reduce_lr_on_plateau_factor: 0.5
 lr: 0.00005
-

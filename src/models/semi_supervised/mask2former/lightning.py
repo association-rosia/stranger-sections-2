@@ -137,7 +137,7 @@ class Mask2FormerLightning(pl.LightningModule):
         outputs = self.student.forward(
             pixel_values=inputs['pixel_values'],
             pixel_mask=inputs['pixel_mask'],
-            output_auxiliary_logits=True
+            # output_auxiliary_logits=True
         )
 
         target_sizes = [self.config.tile_size] * self.config.batch_size
@@ -152,32 +152,26 @@ class Mask2FormerLightning(pl.LightningModule):
             if self.current_batch_idx == 0:
                 self.log_segmentation_images(inputs, labels, masks)
         
-        segmentation_loss = self.segmentation_loss_fct.forward(
-            masks_queries_logits=outputs.masks_queries_logits,
-            class_queries_logits=outputs.class_queries_logits,
-            mask_labels=inputs['mask_labels'],
-            class_labels=inputs['class_labels'],
-            auxiliary_predictions=outputs.auxiliary_logits,
-        )
+        # segmentation_loss = self.segmentation_loss_fct.forward(
+        #     masks_queries_logits=outputs.masks_queries_logits,
+        #     class_queries_logits=outputs.class_queries_logits,
+        #     mask_labels=inputs['mask_labels'],
+        #     class_labels=inputs['class_labels'],
+        #     auxiliary_predictions=outputs.auxiliary_logits,
+        # )
 
-        return segmentation_loss
+        return outputs.loss # segmentation_loss
 
     def consistency_forward(self, inputs_student, inputs_teacher):
         target_sizes = [self.config.tile_size] * self.config.batch_size
-
-        outputs_student = self.student.forward(
-            pixel_values=inputs_student['pixel_values'],
-            pixel_mask=inputs_student['pixel_mask'],
-            output_auxiliary_logits=True
-        )
-
+        
         outputs_teacher = self.teacher.forward(
             pixel_values=inputs_teacher['pixel_values'],
             pixel_mask=inputs_teacher['pixel_mask']
         )
 
-        outputs_processed_t = self.processor.post_process_semantic_segmentation(outputs_teacher, target_sizes=target_sizes)
-        masks_teacher = torch.stack(outputs_processed_t)
+        outputs_processed_teacher = self.processor.post_process_semantic_segmentation(outputs_teacher, target_sizes=target_sizes)
+        masks_teacher = torch.stack(outputs_processed_teacher)
 
         if self.current_step == 'validation' and self.current_batch_idx == 0:
             outputs_processed_student = self.processor.post_process_semantic_segmentation(outputs_teacher, target_sizes=target_sizes)
@@ -194,15 +188,14 @@ class Mask2FormerLightning(pl.LightningModule):
             mask_labels.append(torch.from_numpy(binary_masks).to(device=device))
             class_labels.append(torch.from_numpy(labels).to(device=device))
 
-        consistency_loss = self.consistency_loss_fct(
-            masks_queries_logits=outputs_student.masks_queries_logits,
-            class_queries_logits=outputs_student.class_queries_logits,
+        outputs_student = self.teacher.forward(
+            pixel_values=inputs_teacher['pixel_values'],
+            pixel_mask=inputs_teacher['pixel_mask'],
             mask_labels=mask_labels,
-            class_labels=class_labels,
-            auxiliary_predictions=outputs_student.auxiliary_logits,
+            class_labels=class_labels
         )
 
-        return consistency_loss, outputs_student
+        return outputs_student.loss, outputs_student
     
     def inverse_process_mask_labels(self, inputs):
         mask_labels = inputs['mask_labels']

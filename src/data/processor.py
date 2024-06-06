@@ -109,7 +109,7 @@ class SS2ImageProcessor:
                 pretrained_model_name_or_path=config.model_id,
                 do_rescale=False,
                 do_normalize=config.do_normalize,
-                reduce_labels=True,
+                reduce_labels=False,
                 do_pad=False,
                 do_resize=True,
                 image_mean=config.data.mean,
@@ -187,6 +187,8 @@ class SS2ImageProcessor:
             transforms.extend(self._get_photometric_transforms())
         elif augmentation_mode == AugmentationMode.BOTH:
             transforms.extend(self._get_both_transforms())
+        elif augmentation_mode == AugmentationMode.NONE:
+            pass
         else:
             raise ValueError(f"Unknown augmentation_mode: {augmentation_mode}")
 
