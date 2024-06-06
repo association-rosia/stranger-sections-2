@@ -15,18 +15,18 @@ from src.utils.cls import Config
 
 def main():
     base_config = func.load_config('main')
-    wandb_run = func.get_run('i5qa6bdj')
+    wandb_run = func.get_run('8k6gh4tl')
     submission_name = f'{wandb_run.name}-{wandb_run.id}'
     tile_sizes = [
-        # wandb_run.config['tile_size'],
-        512
+        wandb_run.config['tile_size'],
+        # 512
     ]
     checkpoint_types = [
         'metric'
     ]
     tta_ks = [
-        # 'max'
-        10
+        # 'max',
+        1
     ]
 
     for checkpoint_type, tile_size, k in product(checkpoint_types, tile_sizes, tta_ks):
@@ -36,7 +36,7 @@ def main():
         pathname = os.path.join(config.path.data.raw.test.unlabeled, '*.JPG')
         
         test_time_augmenter = TestTimeAugmenter(
-            AugmentationMode.BOTH,
+            AugmentationMode.GEOMETRIC,
             k=k,
             return_probs=False,
             random_state=42
