@@ -126,8 +126,8 @@ class SamForSemiSupervised:
         return input_points, input_labels
 
     def get_valid_points(self, input_masks):
-        valid_points_0 = self.get_coordinates(input_masks, num_layers=5, value=0)
-        valid_points_1 = self.get_coordinates(input_masks, num_layers=5, value=1)
+        valid_points_0 = self.get_coordinates(input_masks, num_layers=10, value=0)
+        valid_points_1 = self.get_coordinates(input_masks, num_layers=10, value=1)
         num_points_0, num_points_1 = self.get_num_points(input_masks, valid_points_0, valid_points_1)
 
         return valid_points_0, valid_points_1, num_points_0, num_points_1
@@ -196,14 +196,13 @@ class SamForSemiSupervised:
             rate_of_ones = self.calculate_rate_of_ones(input_masks[i])
 
             if rate_of_ones < 0.5:
-                biggest_num_points = min(int(rate_of_ones * self.config.sam_num_input_points), len(valid_points_1))
-                num_points_1.append(biggest_num_points)
-                num_points_0.append(self.config.sam_num_input_points - biggest_num_points)
+                current_num_points = min(int(rate_of_ones * self.config.sam_num_input_points), len(valid_points_1[i]))
+                num_points_1.append(current_num_points)
+                num_points_0.append(self.config.sam_num_input_points - current_num_points)
             else:
-                biggest_num_points = min(int((1 - rate_of_ones) * self.config.sam_num_input_points),
-                                         len(valid_points_0))
-                num_points_0.append(biggest_num_points)
-                num_points_1.append(self.config.sam_num_input_points - biggest_num_points)
+                current_num_points = min(int((1 - rate_of_ones) * self.config.sam_num_input_points), len(valid_points_0[i]))
+                num_points_0.append(current_num_points)
+                num_points_1.append(self.config.sam_num_input_points - current_num_points)
 
         return num_points_0, num_points_1
 
