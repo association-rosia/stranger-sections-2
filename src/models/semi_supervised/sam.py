@@ -245,10 +245,9 @@ class SamForSemiSupervised:
         masks = self.processor.image_processor.post_process_masks(
             masks=outputs.pred_masks,
             original_sizes=inputs['original_sizes'],
-            reshaped_input_sizes=inputs['reshaped_input_sizes'],
-            binarize=False  # use iou score
+            reshaped_input_sizes=inputs['reshaped_input_sizes']
         )
-        masks = F.softmax(torch.cat(masks).squeeze(dim=1))
+        masks = torch.cat(masks).squeeze(dim=1)
 
         for i in list(set(indices)):
             stack_mask = []
@@ -258,12 +257,12 @@ class SamForSemiSupervised:
 
             for label in range(self.config.num_labels):
                 if label == 0:
-                    stack_mask.append(0.5 * torch.ones(masks.shape[-2:], device=masks.device, dtype=masks.dtype))
+                    stack_mask.append(0.1 * torch.ones(masks.shape[-2:], device=masks.device, dtype=masks.dtype))
                 elif label in classes_i:
-                    stack_mask.append((mask_i[stack] > self.config.sam_threshold))  # use iou score
+                    stack_mask.append((outputs.iou_scores[stack] * mask_i[stack]))
                     stack += 1
                 else:
-                    stack_mask.append(torch.zeros(masks.shape[-2:], device=masks.device, dtype=torch.float16))
+                    stack_mask.append(torch.zeros(masks.shape[-2:], device=masks.device, dtype=masks.dtype))
 
             stack_mask = torch.stack(stack_mask)
             self.log_output_masks(stack_mask, i)
