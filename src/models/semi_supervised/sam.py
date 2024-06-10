@@ -22,6 +22,7 @@ class SamForSemiSupervised:
         self.model, self.processor = self.load_model_processor()
         self.images_sizes = (1024, 1024)
         self.value_to_label = {0: 0, 1: 1}  # we can have 0: -1
+        self.log_pixel_values = None
 
         self.current_step = None
         self.current_batch_idx = None
@@ -277,21 +278,21 @@ class SamForSemiSupervised:
     def log_input_masks(self, inputs, input_masks, input_points, input_labels, classes, indices):
         if self.current_step == 'validation' and self.current_batch_idx == 0:
             pixel_values = func.reshape_tensor(inputs['pixel_values'][0], size=self.images_sizes)
-            pixel_values = torch.moveaxis(pixel_values, 0, -1).numpy(force=True)
+            self.log_pixel_values = torch.moveaxis(pixel_values, 0, -1).numpy(force=True)
+
             input_masks = input_masks.numpy(force=True)
             classes_i = [classes[i] for i in range(len(indices)) if indices[i] == 0]
 
             stack = 0
-            sam_input_masks = []
+            sam_input_masks = {}
             sam_input_points = []
 
             for label in range(self.config.num_labels):
                 if label in classes_i:
-                    sam_input_masks.append(wandb.Image(input_masks[stack]))
+                    sam_input_masks[f'input_masks_{label}'] = {'mask_data': input_masks[stack]}
 
                     sam_input_points.append(
                         self.show_points_on_image(
-                            image=pixel_values,
                             input_points=np.array(input_points[stack][0]),
                             input_labels=np.array(input_labels[stack][0])
                         )
@@ -299,24 +300,29 @@ class SamForSemiSupervised:
 
                     stack += 1
                 else:
-                    sam_input_masks.append(wandb.Image(np.zeros(shape=self.images_sizes)))
+                    sam_input_masks[f'input_masks_{label}'] = {'mask_data': np.zeros(shape=self.images_sizes)}
 
                     sam_input_points.append(
                         self.show_points_on_image(
-                            image=pixel_values,
                             input_points=None,
                             input_labels=None
                         )
                     )
 
             wandb.log({
-                # 'val/sam_input_masks': sam_input_masks,
+                'val/sam_input_masks': wandb.Image(
+                    self.log_pixel_values,
+                    masks=dict(sorted(sam_input_masks.items()))
+                )
+            })
+
+            wandb.log({
                 'val/sam_input_points': sam_input_points
             })
 
-    def show_points_on_image(self, image, input_points, input_labels):
+    def show_points_on_image(self, input_points, input_labels):
         plt.figure(figsize=(10, 10))
-        plt.imshow(image.astype(np.float32))
+        plt.imshow(self.log_pixel_values.astype(np.float32))
 
         if input_points is not None and input_labels is not None:
             pos_points = input_points[input_labels == self.value_to_label[1]]
@@ -338,9 +344,19 @@ class SamForSemiSupervised:
 
     def log_output_masks(self, output_masks, i):
         if self.current_step == 'validation' and self.current_batch_idx == 0 and i == 0:
+            output_masks = func.reshape_tensor(output_masks, size=self.images_sizes)
             output_masks = output_masks.numpy(force=True)
-            sam_output_masks = [wandb.Image(output_masks[i]) for i in range(len(output_masks))]
-            # wandb.log({'val/sam_output_masks': sam_output_masks})
+
+            sam_output_masks = {
+                f'output_masks_{j}': {'mask_data': output_masks[j] > 0.1} for j in range(len(output_masks))
+            }
+
+            wandb.log({
+                'val/sam_output_masks': wandb.Image(
+                    self.log_pixel_values,
+                    masks=dict(sorted(sam_output_masks.items()))
+                )
+            })
 
     def load_model_processor(self):
         with torch.no_grad():
