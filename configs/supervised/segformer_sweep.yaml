@@ -1,0 +1,115 @@
+method: bayes
+
+program:
+  src/models/train_model_sweep.py
+
+metric:
+  name: best/iou-micro
+  goal: maximize
+
+run_cap: 1000
+
+parameters:
+  dry: 
+    distribution: constant
+    value: false
+
+  mode: 
+    distribution: constant
+    value: 'supervised'
+
+  model_name: 
+    distribution: constant
+    value: 'segformer'
+
+  model_id: 
+    distribution: constant
+    value: 'nvidia/segformer-b0-finetuned-ade-512-512'
+
+  checkpoint: 
+    distribution: constant
+    value:
+
+  do_normalize: 
+    distribution: categorical
+    values: [ true, false ]
+
+  contrast_factor: 
+    distribution: q_uniform
+    min: 0
+    max: 10
+    q: 0.01
+
+  brightness_factor: 
+    distribution: q_uniform
+    min: 0
+    max: 10
+    q: 0.01
+  
+  gamma_factor: 
+    distribution: q_uniform
+    min: 0
+    max: 10
+    q: 0.01
+  
+  hue_factor: 
+    distribution: q_uniform
+    min: -0.5
+    max: 0.5
+    q: 0.01
+  
+  sharpness_factor: 
+    distribution: q_uniform
+    min: 0
+    max: 15
+    q: 0.01
+  
+  saturation_factor: 
+    distribution: q_uniform
+    min: 0
+    max: 10
+    q: 0.01
+  
+  tile_size: 
+    distribution: constant
+    value: 512
+
+  num_labels: 
+    distribution: constant
+    value: 4
+
+  random_state: 
+    distribution: constant
+    value: 42
+
+  devices: 
+    distribution: constant
+    value: [ 3 ]
+
+  max_epochs: 
+    distribution: constant
+    value: 100
+
+  batch_size: 
+    distribution: constant
+    value: 16
+
+  num_workers: 
+    distribution: constant
+    value: 23
+
+  early_stopping_patience: 
+    distribution: constant
+    value: 15
+
+  reduce_lr_on_plateau_patience: 
+    distribution: constant
+    value: 7
+
+  reduce_lr_on_plateau_factor: 
+    distribution: constant
+    value: 0.5
+
+  lr: 
+    distribution: constant
+    value: 0.000005

@@ -14,10 +14,11 @@ import wandb
 
 import torch
 import src.models.semi_supervised.segformer.lightning as ssp_sfm
+import src.models.semi_supervised.mask2former.lightning as ssp_m2f
 import src.models.supervised.segformer.lightning as spv_sfm
 import src.models.supervised.mask2former.lightning as spv_m2f
 from src.utils import func
-from src.utils.cls import Config
+from src.utils.cls import Config, TrainingMode, ModelName
 
 torch.set_float32_matmul_precision('medium')
 
@@ -43,15 +44,17 @@ def parse_args():
 
 
 def load_model(config: Config, map_location=None):
-    if config.mode == 'supervised':
-        if config.model_name == 'mask2former':
+    if config.mode == TrainingMode.SUPERVISED:
+        if config.model_name == ModelName.MASK2FORMER:
             model = spv_m2f.load_model(config, map_location=map_location)
-        elif config.model_name == 'segformer':
+        elif config.model_name == ModelName.SEGFORMER:
             model = spv_sfm.load_model(config, map_location=map_location)
 
-    elif config.mode == 'semi_supervised':
-        if config.model_name == 'segformer':
+    elif config.mode == TrainingMode.SEMI_SUPERVISED:
+        if config.model_name == ModelName.SEGFORMER:
             model = ssp_sfm.load_model(config, map_location=map_location)
+        if config.model_name == ModelName.MASK2FORMER:
+            model = ssp_m2f.load_model(config, map_location=map_location)
 
     if 'model' not in locals():
         raise ValueError(f"mode={config.mode} and model_name={config.model_name} doesn't exist.")

@@ -29,6 +29,7 @@ class SamForSemiSupervised:
 
     @torch.no_grad()
     def forward(self, inputs, logits):
+        #TODO ne pas mettre des logits mais le mask directement
         masks = func.logits_to_masks(logits)
         image_embeddings, input_masks, classes, indices = self.get_inputs(inputs, masks)
         input_points, input_labels = self.build_input_points_labels(input_masks)

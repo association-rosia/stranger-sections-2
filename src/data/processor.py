@@ -4,6 +4,7 @@ from enum import Enum
 import numpy as np
 import torch
 import torchvision.transforms.v2 as tv2T
+import torchvision.transforms.v2.functional as tv2F
 from PIL import Image
 from torchvision import tv_tensors
 from transformers import Mask2FormerImageProcessor, SegformerImageProcessor
@@ -18,13 +19,22 @@ class AugmentationMode(Enum):
     PHOTOMETRIC = 1
     BOTH = 2
 
+class PreprocessingMode(Enum):
+    NONE = -1
+    PHOTOMETRIC = 0
+
 
 class SS2ImageProcessor:
-    def __init__(self, config: Config, augmentation_mode: AugmentationMode = AugmentationMode.NONE) -> None:
+    def __init__(self,
+                 config: Config,
+                 augmentation_mode: AugmentationMode = AugmentationMode.NONE,
+                 preprocessing_mode: PreprocessingMode = PreprocessingMode.NONE
+                 ) -> None:
         self.config = config
         self.augmentation_mode = augmentation_mode
+        self.preprocessing_mode = preprocessing_mode
         self.huggingface_processor = self.get_huggingface_processor(config)
-        self.transforms = self._get_transforms(augmentation_mode)
+        self.transforms = self.get_transforms(augmentation_mode, preprocessing_mode)
 
     def preprocess(self,
                    images: np.ndarray | list[np.ndarray],
@@ -36,7 +46,7 @@ class SS2ImageProcessor:
         if augmentation_mode is None:
             transforms = self.transforms
         else:
-            transforms = self._get_transforms(augmentation_mode)
+            transforms = self.get_transforms(augmentation_mode)
 
         images = self._numpy_to_list(images)
         labels = self._numpy_to_list(labels)
@@ -75,10 +85,13 @@ class SS2ImageProcessor:
         images_processed, masks_processed = [], []
 
         for image, mask in zip(images, masks):
-            image_processed, mask_processed = transforms(
-                tv_tensors.Image(image),
-                tv_tensors.Mask(mask)
-            )
+            image = tv_tensors.Image(image)
+            mask = tv_tensors.Mask(mask)
+            image_processed, mask_processed = transforms(image, mask)
+            # * To alwais keep multiple labels on a mask
+            if len(torch.unique(mask_processed)) == 1:
+                image_processed = image
+                mask_processed = mask
 
             image_processed = torch.clamp(image_processed, min=0, max=1)
             image_processed = image_processed.to(dtype=torch.float16)
@@ -120,10 +133,14 @@ class SS2ImageProcessor:
 
         return processor
 
-    @staticmethod
-    def _get_none_transforms():
+    def _get_constant_photometric_transforms(self):
         transforms = [
-            tv2T.Lambda(lambda x: x)
+            tv2T.Lambda(lambda x: tv2F.adjust_contrast_image(x, self.config.contrast_factor), tv_tensors.Image),
+            tv2T.Lambda(lambda x: tv2F.adjust_brightness_image(x, self.config.contrast_factor), tv_tensors.Image),
+            tv2T.Lambda(lambda x: tv2F.adjust_gamma_image(x, self.config.gamma_factor), tv_tensors.Image),
+            tv2T.Lambda(lambda x: tv2F.adjust_hue_image(x, self.config.hue_factor), tv_tensors.Image),
+            tv2T.Lambda(lambda x: tv2F.adjust_sharpness_image(x, self.config.sharpness_factor), tv_tensors.Image),
+            tv2T.Lambda(lambda x: tv2F.adjust_saturation_image(x, self.config.saturation_factor), tv_tensors.Image)
         ]
 
         return transforms
@@ -144,14 +161,7 @@ class SS2ImageProcessor:
     def _get_photometric_transforms():
         transforms = [
             tv2T.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.05),
-            tv2T.GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 1.0)),
-            # tv2T.RandomGrayscale(p=0.05),
-            # tv2T.RandomInvert(p=0.05),
-            # tv2T.RandomPosterize(bits=5, p=0.1),
-            # tv2T.RandomSolarize(threshold=0.75, p=0.1),
-            # tv2T.RandomAdjustSharpness(sharpness_factor=1.5, p=0.2),
-            # tv2T.RandomAutocontrast(p=0.2),
-            # tv2T.RandomEqualize(p=0.2)
+            tv2T.GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 1.0))
         ]
 
         return transforms
@@ -162,11 +172,21 @@ class SS2ImageProcessor:
 
         return [*geometric_transforms, *photometric_transforms]
 
-    def _get_transforms(self, augmentation_mode: AugmentationMode) -> tv2T.Compose:
+    def get_transforms(self,
+                        augmentation_mode: AugmentationMode,
+                        preprocessing_mode: PreprocessingMode
+                        ) -> tv2T.Compose:
         transforms = [tv2T.ToDtype(dtype=torch.float32, scale=True)]
 
+        if preprocessing_mode == PreprocessingMode.NONE:
+            pass
+        elif preprocessing_mode == PreprocessingMode.PHOTOMETRIC:
+           transforms.extend(self._get_constant_photometric_transforms())
+        else:
+            raise ValueError(f"Unknown preprocessing_mode: {preprocessing_mode}")
+
         if augmentation_mode == AugmentationMode.NONE:
-            transforms.extend(self._get_none_transforms())
+            pass
         elif augmentation_mode == AugmentationMode.GEOMETRIC:
             transforms.extend(self._get_geometric_transforms())
         elif augmentation_mode == AugmentationMode.PHOTOMETRIC:
@@ -179,26 +199,14 @@ class SS2ImageProcessor:
         return tv2T.Compose(transforms)
 
 
-def make_training_processor(config: Config):
-    return SS2ImageProcessor(config, AugmentationMode.NONE)
-
-
-def make_eval_processor(config: Config):
-    return SS2ImageProcessor(config, AugmentationMode.NONE)
-
-
-def make_inference_processor(config: Config):
-    return SS2ImageProcessor(config, AugmentationMode.NONE)
-
-
 def _debug():
     config = func.load_config('main')
     wandb_config = func.load_config('mask2former', 'supervised')
     config = Config(config, wandb_config)
 
-    train_preprocessor = make_training_processor(config)
-    eval_preprocessor = make_eval_processor(config)
-    inf_preprocessor = make_inference_processor(config)
+    train_preprocessor = SS2ImageProcessor(config, AugmentationMode.NONE)
+    eval_preprocessor = SS2ImageProcessor(config, AugmentationMode.NONE)
+    inf_preprocessor = SS2ImageProcessor(config, AugmentationMode.NONE)
 
     path_img = os.path.join(config.path.data.raw.train.labeled, '17gw5j.JPG')
     img = np.array(Image.open(path_img).convert('RGB'))

@@ -2,18 +2,25 @@ dry: false
 
 mode: 'supervised'
 model_name: 'segformer'
-model_id: 'nvidia/segformer-b0-finetuned-ade-512-512'
+model_id: 'nvidia/segformer-b5-finetuned-ade-640-640' # 'nvidia/segformer-b0-finetuned-ade-512-512'
 checkpoint:
 
 do_normalize: true
-contrast_factor:
-tile_size: 512
+brightness_factor: 3.58
+contrast_factor: 2.99
+gamma_factor: 1.13
+hue_factor: -0.23
+saturation_factor: 0.22
+sharpness_factor: 12.73
+
+
+tile_size: 640 # 512
 num_labels: 4
 random_state: 42
 
-devices: [ 0 ]
+devices: [ 1 ]
 max_epochs: 100
-batch_size: 16
+batch_size: 8 # 16
 num_workers: 23
 
 # criterion: CrossEntropyLoss

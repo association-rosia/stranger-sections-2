@@ -50,7 +50,6 @@ class SS2SemiSupervisedDataset(Dataset):
     def get_unsupervised_inputs(self):
         idx = random.randint(0, len(self.unlabeled_tiles) - 1)
         images = func.load_unsupervised_image(self.config, self.unlabeled_tiles[idx])
-        unsupervised_image = self.unlabeled_tiles[idx]
 
         images = self.processor.preprocess(
             images=images,
@@ -58,23 +57,23 @@ class SS2SemiSupervisedDataset(Dataset):
             apply_huggingface=False,
         )
 
-        inputs_1 = self.processor.preprocess(
+        inputs_student = self.processor.preprocess(
             images=images,
             augmentation_mode=AugmentationMode.PHOTOMETRIC,
             apply_huggingface=True,
         )
-        inputs_1 = self.adjust_shape(inputs_1)
-        inputs_1['pixel_values'] = inputs_1['pixel_values'].to(dtype=torch.float16)
+        inputs_student = self.adjust_shape(inputs_student)
+        inputs_student['pixel_values'] = inputs_student['pixel_values'].to(dtype=torch.float16)
 
-        inputs_2 = self.processor.preprocess(
+        inputs_teacher = self.processor.preprocess(
             images=images,
             augmentation_mode=AugmentationMode.PHOTOMETRIC,
             apply_huggingface=True,
         )
-        inputs_2 = self.adjust_shape(inputs_2)
-        inputs_2['pixel_values'] = inputs_2['pixel_values'].to(dtype=torch.float16)
+        inputs_teacher = self.adjust_shape(inputs_teacher)
+        inputs_teacher['pixel_values'] = inputs_teacher['pixel_values'].to(dtype=torch.float16)
 
-        return inputs_1, inputs_2
+        return inputs_student, inputs_teacher
 
 
 def make_train_dataset(config: Config, labeled_tiles: list, unlabeled_tiles: list) -> SS2SemiSupervisedDataset:
@@ -93,10 +92,10 @@ def make_val_dataset(config: Config, labeled_tiles: list, unlabeled_tiles: list)
 
 def _debug():
     from torch.utils.data import DataLoader
-    from src.data.collate import get_collate_fn_training
+    from src.data.collate import SS2Mask2formerCollateFn
 
     config = func.load_config('main')
-    wandb_config = func.load_config('segformer', 'semi_supervised')
+    wandb_config = func.load_config('mask2former', 'semi_supervised')
     config = Config(config, wandb_config)
 
     tiler = Tiler(config=config)
@@ -109,12 +108,21 @@ def _debug():
     train_dataloader = DataLoader(
         dataset=train_dataset,
         batch_size=12,
-        collate_fn=get_collate_fn_training(config)
+        collate_fn=SS2Mask2formerCollateFn(config, training=True)
+    )
+
+    val_dataloader = DataLoader(
+        dataset=val_dataset,
+        batch_size=12,
+        collate_fn=SS2Mask2formerCollateFn(config, training=True)
     )
 
     for supervised_batch, unsupervised_batch in train_dataloader:
-        break
-
+        continue
+    
+    for supervised_batch, unsupervised_batch in val_dataloader:
+        continue
+    
     return
 
 

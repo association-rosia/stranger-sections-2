@@ -2,18 +2,30 @@ import math
 import os
 
 import numpy as np
+import torch
 
 from src.utils import func
 from src.utils.cls import Config
+from collections import deque
 
 
 class Tiler:
     def __init__(self, config: Config) -> None:
         self.config = config
-        self.bboxes = self._build_bboxes(self.config.tile_size)
+        self.bboxes = self._build_bboxes(
+            self.config.data.size_h,
+            self.config.data.size_w,
+            self.config.tile_size
+        )
+        self.queue = deque()
 
-    def build(self, labeled: bool = True, tile_size: int = None):
-        bboxes = self._build_bboxes(tile_size)
+    def build(self,
+              labeled: bool = True,
+              size_h: int = None,
+              size_w: int = None,
+              tile_size: int = None):
+        
+        bboxes = self._build_bboxes(size_h, size_w, tile_size)
 
         if labeled:
             tiles = self._get_labeled_tiles(bboxes)
@@ -22,33 +34,50 @@ class Tiler:
 
         return tiles
 
-    def tile(self, image: np.ndarray, tile_size: int = None) -> list[np.ndarray]:
+    def tile(self, image: np.ndarray | torch.Tensor, tile_size: int = None) -> list[np.ndarray | torch.Tensor]:
+        size_h, size_w = image.shape[-2:]
+        if tile_size is None:
+            tile_size = self.config.tile_size
+        self.queue.append((size_h, size_w, tile_size))
+        
         tiles = []
-        bboxes = self._build_bboxes(tile_size)
+        bboxes = self._build_bboxes(size_h, size_w, tile_size)
 
         for x0, y0, x1, y1 in bboxes:
             tiles.append(image[:, x0:x1, y0:y1])
 
         return tiles
 
-    def untile(self, tiles: list[np.ndarray], tile_size: tuple[int, int] = None) -> np.ndarray:
-        bboxes = self._build_bboxes(tile_size)
+    def untile(self, tiles: list[np.ndarray | torch.Tensor]) -> np.ndarray | torch.Tensor:
+        size_h, size_w, tile_size = self.queue.popleft()
+        bboxes = self._build_bboxes(size_h, size_w, tile_size)
         num_labels = self.config.num_labels
-        size_h = self.config.data.size_h
-        size_w = self.config.data.size_w
-        image = np.zeros((num_labels, size_h, size_w), np.float16)
+
+        if isinstance(tiles[0], np.ndarray):
+            image = np.zeros((num_labels, size_h, size_w), np.float32)
+        else:
+            image = torch.zeros((num_labels, size_h, size_w), dtype=torch.float32)
+
 
         for (x0, y0, x1, y1), tile in zip(bboxes, tiles):
             image[:, x0:x1, y0:y1] += tile
 
         return image
 
-    def _build_bboxes(self, tile_size: int = None):
+    def _build_bboxes(self, size_h: int, size_w: int, tile_size: int = None):
         if tile_size is None:
             bboxes = self.bboxes
         else:
             num_h_tiles, overlap_h, num_w_tiles, overlap_w = self._get_num_tiles(tile_size)
-            bboxes = self._get_coords_tile(tile_size, num_h_tiles, overlap_h, num_w_tiles, overlap_w)
+            bboxes = self._get_coords_tile(
+                size_h,
+                size_w,
+                tile_size,
+                num_h_tiles,
+                overlap_h,
+                num_w_tiles,
+                overlap_w
+            )
 
         return bboxes
 
@@ -67,7 +96,7 @@ class Tiler:
                 x0, y0, x1, y1 = bbox
                 cropped_npy_data = npy_data[x0:x1, y0:y1]
 
-                if len(np.unique(cropped_npy_data).tolist()) > 1:
+                if len(np.unique(cropped_npy_data)) > 1:
                     tiles.append({'image': image, 'bbox': bbox})
 
         return tiles
@@ -100,10 +129,16 @@ class Tiler:
 
         return num_h_tiles, overlap_h, num_w_tiles, overlap_w
 
-    def _get_coords_tile(self, tile_size: int, num_h_tiles: int, overlap_h: int, num_w_tiles: int,
+    def _get_coords_tile(self,
+                         size_h: int,
+                         size_w: int,
+                         tile_size: int,
+                         num_h_tiles: int,
+                         overlap_h: int,
+                         num_w_tiles: int,
                          overlap_w: int):
-        size_h = self.config.data.size_h
-        size_w = self.config.data.size_w
+        # size_h = self.config.data.size_h
+        # size_w = self.config.data.size_w
         coords_tile = []
 
         for i in range(num_h_tiles):
@@ -135,7 +170,8 @@ def _debug():
     tiles = tiler.build(labeled=False)
     image = Image.open('data/raw/train/unlabeled/0a6odx.jpg')
     image = np.moveaxis(np.asarray(image), -1, 0)
-    tiles = tiler.tile(image)
+    image = torch.from_numpy(image)
+    tiles = tiler.tile(image, 384)
 
     return
 

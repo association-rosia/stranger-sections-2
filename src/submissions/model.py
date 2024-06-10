@@ -1,109 +1,101 @@
 import numpy as np
-from src.data import collate, processor
+from src.data import collate
+from src.data.processor import SS2ImageProcessor, AugmentationMode, PreprocessingMode
+from torchvision.transforms.v2 import Compose
 import torch
 from PIL import Image
 from typing_extensions import Self
 
 from src.data.tiling import Tiler
 from src.models.train_model import load_model
-from src.utils.cls import Config
+from src.submissions.tta import TestTimeAugmenter
+from src.utils.cls import Config, ModelName
 
 
 class SS2InferenceModel(torch.nn.Module):
     def __init__(
             self,
             config: Config,
-            base_model: torch.nn.Module,
             map_location: str,
-            tiling: bool = False,
-            tile_size: int = None
+            tile_size: int,
+            test_time_augmenter: TestTimeAugmenter
     ) -> None:
         super().__init__()
         self.config = config
         self.map_location = map_location
-        self.model = self._get_model(base_model)
+        self.model = self._get_model()
         self.processor = self._get_processor()
+        self.transforms = self._get_transforms()
         self.base_model_forward = self._get_base_model_forward()
         self.collate = self._get_collate()
         self.tiler = Tiler(self.config)
-        self.tiling = tiling
-        self.tile_size = self._get_tile_size(tile_size)
+        self.tile_size = tile_size
+        self.test_time_augmenter = test_time_augmenter
 
-    @classmethod
-    def load_from_config(
-            cls,
-            config: Config,
-            map_location: str,
-            tiling: bool = False,
-            tile_size: int = None
-    ) -> Self:
-        model = load_model(config, map_location=map_location)
+    def _get_model(self):
+        model = load_model(self.config, map_location=self.map_location)
         if hasattr(model, 'model'):
             model = model.model
         else:
             model = model.student
+        model = model.eval()
+        model = model.to(device=self.map_location)
 
-        self = cls(config, model, map_location=map_location, tiling=tiling, tile_size=tile_size)
+        return model
 
-        return self
+    def _get_processor(self) -> SS2ImageProcessor:
+        return SS2ImageProcessor(self.config)
+    
+    def _get_transforms(self) -> Compose:
+        # TODO: remove in the future to keep photometric only
+        if hasattr(self.config, 'brightness_factor'):
+            preprocessing_mode = PreprocessingMode.PHOTOMETRIC
+        else:
+            preprocessing_mode = PreprocessingMode.NONE
 
-    def _get_model(self, base_model: torch.nn.Module):
-        base_model = base_model.eval()
-        base_model = base_model.to(device=self.map_location)
+        transforms = self.processor.get_transforms(
+            AugmentationMode.NONE, 
+            preprocessing_mode
+        )
 
-        return base_model
-
-    def _get_processor(self) -> processor.SS2ImageProcessor:
-        return processor.make_inference_processor(self.config)
+        return transforms
         
     def _get_base_model_forward(self):
-        if self.config.model_name == 'mask2former':
+        if self.config.model_name == ModelName.MASK2FORMER:
             return self._mask2former_forward
-        if self.config.model_name == 'segformer':
+        if self.config.model_name == ModelName.SEGFORMER:
             return self._segformer_forward
         else:
-            raise ValueError(f"model_name expected 'mask2former' but received {self.config.model_name}")
+            raise NotImplementedError
 
     def _get_collate(self):
-        return collate.get_collate_fn_inference(self.config)
-        
-    def _get_tile_size(self, tile_size):
-        if self.tiling:
-            if tile_size is None:
-                tile_size = self.config.tile_size
-            else:
-                tile_size = tile_size
-        else:
-            tile_size = (self.config.data.size_h, self.config.data.size_w)
-
-        return tile_size
-
-    def _get_images(self, image: np.ndarray):
-        if self.tiling:
-            images = self.tiler.tile(image, self.tile_size)
-        else:
-            images = [image]
-
-        return images
+        if self.config.model_name == ModelName.MASK2FORMER:
+            return collate.SS2Mask2formerCollateFn(self.config, training=False)
 
     @torch.inference_mode
-    def forward(self, image: Image.Image | np.ndarray) -> np.ndarray:
+    def forward(self, image: Image.Image | np.ndarray | torch.Tensor) -> torch.Tensor:
         if isinstance(image, Image.Image):
             image = np.moveaxis(np.asarray(image), -1, 0)
-        images = self._get_images(image)
+        if isinstance(image, np.ndarray):
+            image = torch.from_numpy(image)
 
-        inputs = self.processor.preprocess(images)
-        inputs.to(device=self.map_location)
-        pred_masks = self.base_model_forward(inputs)
-        pred_masks = [pred_mask.numpy(force=True) for pred_mask in pred_masks]
+        image = self.transforms(image)
+        tta_image = self.test_time_augmenter.augment(image)
+        tta_tiled_image = [self.tiler.tile(image, self.tile_size) for image in tta_image]
+        
+        tta_mask = []
+        for tiled_image in tta_tiled_image:
+            inputs = self.processor.preprocess(tiled_image)
+            inputs.to(device=self.map_location)
+            tiled_mask = self.base_model_forward(inputs)
+            # pred_masks = [pred_mask.numpy(force=True) for pred_mask in pred_masks]
+            tiled_mask = [mask.cpu() for mask in tiled_mask]
+            mask = self.tiler.untile(tiled_mask)
 
-        if self.tiling:
-            pred_mask = self.tiler.untile(pred_masks, self.tile_size)
-        else:
-            pred_mask = pred_masks[0]
+            tta_mask.append(mask)
 
-        pred_mask = pred_mask.argmax(axis=0)
-
+        pred_mask = self.test_time_augmenter.deaugment(tta_mask)
+        
         return pred_mask
 
     def _mask2former_forward(self, inputs) -> torch.Tensor:
