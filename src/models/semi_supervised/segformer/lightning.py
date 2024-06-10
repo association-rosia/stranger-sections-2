@@ -293,7 +293,8 @@ def load_model(config: Config, map_location=None):
         lightning = SegFormerLightning(config)
     else:
         path_checkpoint = os.path.join(config.path.models, config.checkpoint)
-        lightning = SegFormerLightning.load_from_checkpoint(path_checkpoint, config=config, map_location=map_location, strict=False)
+        lightning = SegFormerLightning.load_from_checkpoint(path_checkpoint, config=config, map_location=map_location,
+                                                            strict=False)
 
     return lightning
 

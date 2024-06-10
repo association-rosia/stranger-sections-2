@@ -1,7 +1,8 @@
-from torch import Tensor
 import torch
+from torch import Tensor
 from transformers.models.mask2former.configuration_mask2former import Mask2FormerConfig
 from transformers.models.mask2former.modeling_mask2former import Mask2FormerLoss
+
 
 class SS2Mask2FormerLoss(torch.nn.Module):
     def __init__(self,
@@ -19,18 +20,18 @@ class SS2Mask2FormerLoss(torch.nn.Module):
         # self.eos_coef = config.no_object_weight
         # empty_weight = torch.ones(self.mask2former_loss.num_labels + 1)
         # empty_weight[-1] = self.eos_coef
-        
+
         # if weight is not None:
         #     empty_weight[:-1] = weight
         # self.mask2former_loss.register_buffer("empty_weight", empty_weight)
 
     def forward(
-        self,
-        masks_queries_logits: Tensor,
-        class_queries_logits: Tensor,
-        mask_labels: Tensor,
-        class_labels: Tensor,
-        auxiliary_predictions: dict[str, Tensor]
+            self,
+            masks_queries_logits: Tensor,
+            class_queries_logits: Tensor,
+            mask_labels: Tensor,
+            class_labels: Tensor,
+            auxiliary_predictions: dict[str, Tensor]
     ) -> dict[str, Tensor]:
         loss_dict: dict[str, Tensor] = self.mask2former_loss.forward(
             masks_queries_logits=masks_queries_logits,

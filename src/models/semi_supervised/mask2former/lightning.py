@@ -1,20 +1,19 @@
-import os
 import math
+import os
 
 import numpy as np
+import pytorch_lightning as pl
 import torch
+import torchmetrics as tm
+import wandb
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 from transformers import Mask2FormerForUniversalSegmentation
-import pytorch_lightning as pl
 
-import torchmetrics as tm
-import wandb
- 
 import src.data.semi_supervised.dataset as ssp_dataset
-from src.data.processor import SS2ImageProcessor
 from src.data.collate import SS2Mask2formerCollateFn
+from src.data.processor import SS2ImageProcessor
 from src.data.tiling import Tiler
 from src.models.semi_supervised.mask2former.losses import SS2Mask2FormerLoss
 from src.utils import func
@@ -47,7 +46,7 @@ class Mask2FormerLightning(pl.LightningModule):
         self.segmentation_loss_fct = self.configure_criterion()
         self.consistency_loss_fct = self.configure_criterion()
         # self.sam_loss_fct = SS2Mask2FormerLoss(self.student.config)
-        
+
         self.metrics = self.configure_metrics()
 
         self.current_step = None
@@ -59,8 +58,8 @@ class Mask2FormerLightning(pl.LightningModule):
         segmentation_loss = self.segmentation_forward(segmentation_input)
         consistency_loss, consistency_outputs = self.consistency_forward(*consistency_inputs)
         # sam_loss = self.sam_forward(consistency_inputs, consistency_outputs)
-        
-        loss = segmentation_loss + self.delta_c * consistency_loss # + self.delta_s * sam_loss
+
+        loss = segmentation_loss + self.delta_c * consistency_loss  # + self.delta_s * sam_loss
         dict_loss = {
             'segmentation_loss': segmentation_loss,
             'consistency_loss': consistency_loss,
@@ -113,7 +112,7 @@ class Mask2FormerLightning(pl.LightningModule):
         return [optimizer], [scheduler]
 
     def configure_criterion(self):
-        
+
         class_labels = self.config.data.class_labels.__dict__
         class_ordered = sorted([int(k) for k in class_labels.keys()])
         label_weights = self.config.data.label_weights.__dict__
@@ -151,7 +150,7 @@ class Mask2FormerLightning(pl.LightningModule):
 
             if self.current_batch_idx == 0:
                 self.log_segmentation_images(inputs, labels, masks)
-        
+
         segmentation_loss = self.segmentation_loss_fct.forward(
             masks_queries_logits=outputs.masks_queries_logits,
             class_queries_logits=outputs.class_queries_logits,
@@ -176,11 +175,13 @@ class Mask2FormerLightning(pl.LightningModule):
             pixel_mask=inputs_teacher['pixel_mask']
         )
 
-        outputs_processed_t = self.processor.post_process_semantic_segmentation(outputs_teacher, target_sizes=target_sizes)
+        outputs_processed_t = self.processor.post_process_semantic_segmentation(outputs_teacher,
+                                                                                target_sizes=target_sizes)
         masks_teacher = torch.stack(outputs_processed_t)
 
         if self.current_step == 'validation' and self.current_batch_idx == 0:
-            outputs_processed_student = self.processor.post_process_semantic_segmentation(outputs_teacher, target_sizes=target_sizes)
+            outputs_processed_student = self.processor.post_process_semantic_segmentation(outputs_teacher,
+                                                                                          target_sizes=target_sizes)
             masks_student = torch.stack(outputs_processed_student)
 
             self.log_consistency_images(inputs_student, masks_student, 'student')
@@ -203,7 +204,7 @@ class Mask2FormerLightning(pl.LightningModule):
         )
 
         return consistency_loss, outputs_student
-    
+
     def inverse_process_mask_labels(self, inputs):
         mask_labels = inputs['mask_labels']
         class_labels = inputs['class_labels']

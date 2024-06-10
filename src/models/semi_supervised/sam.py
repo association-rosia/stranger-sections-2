@@ -1,16 +1,16 @@
+import io
 import random
 
-import io
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.nn.functional as F
 import wandb
+from PIL import Image
 from transformers import SamModel, SamProcessor
 
 from src.utils import func
 from src.utils.cls import Config
-from PIL import Image
 
 
 class SamForSemiSupervised:
@@ -29,7 +29,7 @@ class SamForSemiSupervised:
 
     @torch.no_grad()
     def forward(self, inputs, logits):
-        #TODO ne pas mettre des logits mais le mask directement
+        # TODO ne pas mettre des logits mais le mask directement
         masks = func.logits_to_masks(logits)
         image_embeddings, input_masks, classes, indices = self.get_inputs(inputs, masks)
         input_points, input_labels = self.build_input_points_labels(input_masks)
@@ -202,7 +202,8 @@ class SamForSemiSupervised:
                 num_points_1.append(current_num_points)
                 num_points_0.append(self.config.sam_num_input_points - current_num_points)
             else:
-                current_num_points = min(int((1 - rate_of_ones) * self.config.sam_num_input_points), len(valid_points_0[i]))
+                current_num_points = min(int((1 - rate_of_ones) * self.config.sam_num_input_points),
+                                         len(valid_points_0[i]))
                 num_points_0.append(current_num_points)
                 num_points_1.append(self.config.sam_num_input_points - current_num_points)
 

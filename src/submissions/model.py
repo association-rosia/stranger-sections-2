@@ -1,11 +1,10 @@
 import numpy as np
-from src.data import collate
-from src.data.processor import SS2ImageProcessor, AugmentationMode, PreprocessingMode
-from torchvision.transforms.v2 import Compose
 import torch
 from PIL import Image
-from typing_extensions import Self
+from torchvision.transforms.v2 import Compose
 
+from src.data import collate
+from src.data.processor import SS2ImageProcessor, AugmentationMode, PreprocessingMode
 from src.data.tiling import Tiler
 from src.models.train_model import load_model
 from src.submissions.tta import TestTimeAugmenter
@@ -45,7 +44,7 @@ class SS2InferenceModel(torch.nn.Module):
 
     def _get_processor(self) -> SS2ImageProcessor:
         return SS2ImageProcessor(self.config)
-    
+
     def _get_transforms(self) -> Compose:
         # TODO: remove in the future to keep photometric only
         if hasattr(self.config, 'brightness_factor'):
@@ -54,12 +53,12 @@ class SS2InferenceModel(torch.nn.Module):
             preprocessing_mode = PreprocessingMode.NONE
 
         transforms = self.processor.get_transforms(
-            AugmentationMode.NONE, 
+            AugmentationMode.NONE,
             preprocessing_mode
         )
 
         return transforms
-        
+
     def _get_base_model_forward(self):
         if self.config.model_name == ModelName.MASK2FORMER:
             return self._mask2former_forward
@@ -82,7 +81,7 @@ class SS2InferenceModel(torch.nn.Module):
         image = self.transforms(image)
         tta_image = self.test_time_augmenter.augment(image)
         tta_tiled_image = [self.tiler.tile(image, self.tile_size) for image in tta_image]
-        
+
         tta_mask = []
         for tiled_image in tta_tiled_image:
             inputs = self.processor.preprocess(tiled_image)
@@ -95,7 +94,7 @@ class SS2InferenceModel(torch.nn.Module):
             tta_mask.append(mask)
 
         pred_mask = self.test_time_augmenter.deaugment(tta_mask)
-        
+
         return pred_mask
 
     def _mask2former_forward(self, inputs) -> torch.Tensor:
