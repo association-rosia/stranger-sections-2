@@ -19,6 +19,7 @@ class AugmentationMode(Enum):
     PHOTOMETRIC = 1
     BOTH = 2
 
+
 class PreprocessingMode(Enum):
     NONE = -1
     PHOTOMETRIC = 0
@@ -40,13 +41,14 @@ class SS2ImageProcessor:
                    images: np.ndarray | list[np.ndarray],
                    labels: np.ndarray | list[np.ndarray] = None,
                    augmentation_mode: AugmentationMode = None,
+                   preprocessing_mode: PreprocessingMode = None,
                    apply_huggingface: bool = True
                    ):
 
-        if augmentation_mode is None:
+        if augmentation_mode is None or preprocessing_mode is None:
             transforms = self.transforms
         else:
-            transforms = self.get_transforms(augmentation_mode)
+            transforms = self.get_transforms(augmentation_mode, preprocessing_mode)
 
         images = self._numpy_to_list(images)
         labels = self._numpy_to_list(labels)
@@ -88,11 +90,11 @@ class SS2ImageProcessor:
             image = tv_tensors.Image(image)
             mask = tv_tensors.Mask(mask)
             image_processed, mask_processed = transforms(image, mask)
-            # * To alwais keep multiple labels on a mask
+            # * To always keep multiple labels on a mask
             if len(torch.unique(mask_processed)) == 1:
                 image_processed = image
                 mask_processed = mask
-            
+
             image_processed = torch.clamp(image_processed, min=0, max=1)
             image_processed = image_processed.to(dtype=torch.float16)
             images_processed.append(image_processed)
@@ -132,7 +134,7 @@ class SS2ImageProcessor:
             raise ValueError(f"Unknown model_name: {config.model_name}")
 
         return processor
-    
+
     def _get_constant_photometric_transforms(self):
         transforms = [
             tv2T.Lambda(lambda x: tv2F.adjust_contrast_image(x, self.config.contrast_factor), tv_tensors.Image),
@@ -151,8 +153,7 @@ class SS2ImageProcessor:
             tv2T.RandomAffine(degrees=(-10, 10), translate=(0.05, 0.05), scale=(0.95, 1.05), shear=(-8, 8)),
             tv2T.RandomHorizontalFlip(p=0.5),
             tv2T.RandomVerticalFlip(p=0.1),
-            tv2T.RandomPerspective(distortion_scale=0.2, p=0.2),
-            # tv2T.ElasticTransform(alpha=1, sigma=0.1)
+            tv2T.RandomPerspective(distortion_scale=0.2, p=0.2)
         ]
 
         return transforms
@@ -173,15 +174,16 @@ class SS2ImageProcessor:
         return [*geometric_transforms, *photometric_transforms]
 
     def get_transforms(self,
-                        augmentation_mode: AugmentationMode,
-                        preprocessing_mode: PreprocessingMode
-                        ) -> tv2T.Compose:
+                       augmentation_mode: AugmentationMode,
+                       preprocessing_mode: PreprocessingMode
+                       ) -> tv2T.Compose:
+
         transforms = [tv2T.ToDtype(dtype=torch.float32, scale=True)]
 
         if preprocessing_mode == PreprocessingMode.NONE:
             pass
         elif preprocessing_mode == PreprocessingMode.PHOTOMETRIC:
-           transforms.extend(self._get_constant_photometric_transforms())
+            transforms.extend(self._get_constant_photometric_transforms())
         else:
             raise ValueError(f"Unknown preprocessing_mode: {preprocessing_mode}")
 

@@ -1,12 +1,12 @@
 import math
 import os
+from collections import deque
 
 import numpy as np
 import torch
 
 from src.utils import func
 from src.utils.cls import Config
-from collections import deque
 
 
 class Tiler:
@@ -24,7 +24,7 @@ class Tiler:
               size_h: int = None,
               size_w: int = None,
               tile_size: int = None):
-        
+
         bboxes = self._build_bboxes(size_h, size_w, tile_size)
 
         if labeled:
@@ -39,7 +39,7 @@ class Tiler:
         if tile_size is None:
             tile_size = self.config.tile_size
         self.queue.append((size_h, size_w, tile_size))
-        
+
         tiles = []
         bboxes = self._build_bboxes(size_h, size_w, tile_size)
 
@@ -57,7 +57,6 @@ class Tiler:
             image = np.zeros((num_labels, size_h, size_w), np.float32)
         else:
             image = torch.zeros((num_labels, size_h, size_w), dtype=torch.float32)
-
 
         for (x0, y0, x1, y1), tile in zip(bboxes, tiles):
             image[:, x0:x1, y0:y1] += tile

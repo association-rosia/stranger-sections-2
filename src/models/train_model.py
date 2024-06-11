@@ -75,12 +75,22 @@ def get_trainer(config: Config):
         verbose=True
     )
 
-    checkpoint_callback_metric = pl.callbacks.ModelCheckpoint(
+    checkpoint_callback_micro = pl.callbacks.ModelCheckpoint(
         save_top_k=1,
         monitor='val/iou-micro',
         mode='max',
         dirpath=config.path.models,
-        filename=f'{wandb.run.name}-{wandb.run.id}-metric',
+        filename=f'{wandb.run.name}-{wandb.run.id}-micro',
+        auto_insert_metric_name=False,
+        verbose=True
+    )
+
+    checkpoint_callback_macro = pl.callbacks.ModelCheckpoint(
+        save_top_k=1,
+        monitor='val/iou-macro',
+        mode='max',
+        dirpath=config.path.models,
+        filename=f'{wandb.run.name}-{wandb.run.id}-macro',
         auto_insert_metric_name=False,
         verbose=True
     )
@@ -96,7 +106,7 @@ def get_trainer(config: Config):
         trainer = pl.Trainer(
             max_epochs=2,
             logger=pl.loggers.WandbLogger(),
-            callbacks=[checkpoint_callback_loss, checkpoint_callback_metric],
+            callbacks=[checkpoint_callback_loss, checkpoint_callback_micro, checkpoint_callback_macro],
             devices=config.devices,
             precision='16-mixed',
             limit_train_batches=3,
@@ -108,7 +118,7 @@ def get_trainer(config: Config):
             max_epochs=config.max_epochs,
             logger=pl.loggers.WandbLogger(),
             # callbacks=[checkpoint_callback_loss, checkpoint_callback_metric, early_stopping_callback],
-            callbacks=[checkpoint_callback_loss, checkpoint_callback_metric],
+            callbacks=[checkpoint_callback_loss, checkpoint_callback_micro, checkpoint_callback_macro],
             precision='16-mixed',
             val_check_interval=config.val_check_interval
         )
@@ -118,7 +128,7 @@ def get_trainer(config: Config):
             max_epochs=config.max_epochs,
             logger=pl.loggers.WandbLogger(),
             # callbacks=[checkpoint_callback_loss, checkpoint_callback_metric, early_stopping_callback],
-            callbacks=[checkpoint_callback_loss, checkpoint_callback_metric],
+            callbacks=[checkpoint_callback_loss, checkpoint_callback_micro, checkpoint_callback_macro],
             precision='16-mixed',
             val_check_interval=config.val_check_interval
         )

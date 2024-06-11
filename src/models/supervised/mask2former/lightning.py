@@ -1,15 +1,15 @@
 import os
 
 import pytorch_lightning as pl
-import torchmetrics as tm
-import src.data.supervised.dataset as spv_dataset
 import torch
+import torchmetrics as tm
 import wandb
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 from transformers import Mask2FormerForUniversalSegmentation
 
+import src.data.supervised.dataset as spv_dataset
 from src.data.collate import SS2Mask2formerCollateFn
 from src.data.processor import SS2ImageProcessor
 from src.utils import func
@@ -44,9 +44,9 @@ class Mask2FormerLightning(pl.LightningModule):
         loss = outputs['loss']
         self.log('val/loss', loss, on_epoch=True)
         self.validation_log(inputs, outputs, batch_idx)
-        
+
         return loss
-    
+
     def on_validation_epoch_end(self) -> None:
         metrics = self.metrics.compute()
         self.log_dict(metrics, on_epoch=True)
@@ -56,7 +56,7 @@ class Mask2FormerLightning(pl.LightningModule):
         target_sizes = [self.config.tile_size] * self.config.batch_size
         masks = self.processor.post_process_semantic_segmentation(outputs, target_sizes)
         ground_truth = self.inverse_process_mask_labels(inputs)
-        
+
         if batch_idx == 0:
             self.log_image(inputs['pixel_values'][0], ground_truth[0], masks[0])
 
@@ -110,7 +110,7 @@ class Mask2FormerLightning(pl.LightningModule):
             'frequency': 1
         }
         return [optimizer], [scheduler]
-    
+
     def configure_metrics(self):
         num_labels = self.config.num_labels
 

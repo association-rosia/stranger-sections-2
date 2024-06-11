@@ -1,5 +1,6 @@
-from torch.utils.data import Dataset
 import torch
+from torch.utils.data import Dataset
+
 from src.data.processor import SS2ImageProcessor, AugmentationMode, PreprocessingMode
 from src.data.tiling import Tiler
 from src.utils import func

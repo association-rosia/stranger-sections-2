@@ -1,14 +1,13 @@
 import itertools
-import math
-
-import torch
-import torchvision.transforms.v2.functional as tv2F
-from src.data.processor import AugmentationMode, SS2ImageProcessor
-from torchvision.transforms.v2 import Compose
-import torchvision.transforms.v2 as tv2T
+from collections import deque
 
 import numpy as np
-from collections import deque
+import torch
+import torchvision.transforms.v2 as tv2T
+import torchvision.transforms.v2.functional as tv2F
+from torchvision.transforms.v2 import Compose
+
+from src.data.processor import AugmentationMode, SS2ImageProcessor
 
 
 class GeometricAugmentation:
@@ -37,12 +36,12 @@ class TestTimeAugmenter:
 
     def _get_photometric_transforms(self, augmentation_mode: AugmentationMode) -> Compose:
         transforms = [tv2T.Lambda(lambda x: x)]
-        
+
         if augmentation_mode in [AugmentationMode.PHOTOMETRIC, AugmentationMode.BOTH]:
             transforms = SS2ImageProcessor._get_photometric_transforms()
-        
+
         return Compose(transforms)
-    
+
     def _get_geometric_transforms(augmentation_mode: AugmentationMode) -> list[GeometricAugmentation]:
         # Only Rotation of 0 and 90 to avoid duplicate combination:
         # Rotation 90 + HorizontalFlip + VerticalFlip <=> Rotation 270
@@ -56,7 +55,7 @@ class TestTimeAugmenter:
             else:
                 random_parameters = self.numpy_random.choice(
                     np.arange(1, len(self.product)),
-                    size=self.k-1,
+                    size=self.k - 1,
                     replace=False
                 )
                 parameters = [self.product[index_parameter] for index_parameter in random_parameters]
@@ -66,7 +65,7 @@ class TestTimeAugmenter:
             raise ValueError(f'{self.k}')
 
         return parameters
-        
+
     def _merge_augmentations(self, masks: list[torch.Tensor]) -> torch.Tensor:
         tta_mask = torch.zeros(size=masks[0].shape, device=masks[0].device)
         for mask in masks:
@@ -90,7 +89,7 @@ class TestTimeAugmenter:
             augmented_images.append(augmented_image)
 
         return augmented_images
-    
+
     def deaugment(self, masks: list):
         tta_parameters = self.queue.popleft()
         deaugmented_masks = []

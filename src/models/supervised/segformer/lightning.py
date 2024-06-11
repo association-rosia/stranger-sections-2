@@ -57,7 +57,8 @@ class SegformerLightning(pl.LightningModule):
 
     def on_validation_epoch_end(self):
         metrics = self.metrics.compute()
-        self.best_metrics = {k.replace('val', 'best'): max(self.best_metrics[k.replace('val', 'best')], v) for k, v in metrics.items()}
+        self.best_metrics = {k.replace('val', 'best'): max(self.best_metrics[k.replace('val', 'best')], v) for k, v in
+                             metrics.items()}
         self.log_dict(self.best_metrics, on_epoch=True)
         self.log_dict(metrics, on_epoch=True)
         self.metrics.reset()
