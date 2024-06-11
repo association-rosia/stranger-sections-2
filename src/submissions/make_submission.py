@@ -6,9 +6,9 @@ import numpy as np
 from PIL import Image
 from tqdm import tqdm
 
-from src.submissions.tta import TestTimeAugmenter
 from src.data.processor import AugmentationMode
 from src.submissions.model import SS2InferenceModel
+from src.submissions.tta import TestTimeAugmenter
 from src.utils import func
 from src.utils.cls import Config
 
@@ -34,7 +34,7 @@ def main():
         wandb_run.config['checkpoint'] = f'{wandb_run.name}-{wandb_run.id}-{checkpoint_type}.ckpt'
         config = Config(base_config, wandb_run.config)
         pathname = os.path.join(config.path.data.raw.test.unlabeled, '*.JPG')
-        
+
         test_time_augmenter = TestTimeAugmenter(
             AugmentationMode.GEOMETRIC,
             k=k,

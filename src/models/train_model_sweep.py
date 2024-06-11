@@ -6,8 +6,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-import os
-
 import pytorch_lightning as pl
 import wandb
 

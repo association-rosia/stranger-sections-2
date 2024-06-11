@@ -1,20 +1,25 @@
-dry: false
+dry: true
 
 mode: 'semi_supervised'
 model_name: 'segformer'
 model_id: 'nvidia/segformer-b5-finetuned-ade-640-640' # 'nvidia/segformer-b0-finetuned-ade-512-512'
 checkpoint:
 
-sam_id: 'facebook/sam-vit-huge' # 'facebook/sam-vit-base'
-sam_batch_size: 4
-sam_num_input_points: 100
-sam_threshold: 0.5
+sam_model_id: 'facebook/sam-vit-huge' # 'facebook/sam-vit-base'
+sam_input_points_num: 50
+sam_input_points_rate_ones: 0.5
 
 do_normalize: false
 tile_size: 640
-contrast_factor:
 num_labels: 4
 random_state: 42
+
+contrast_factor: 1
+brightness_factor: 1
+gamma_factor: 1
+hue_factor: 0
+sharpness_factor: 1
+saturation_factor: 1
 
 devices: [ 0 ] # [ 0, 1, 2, 3 ]
 max_epochs: 100
@@ -25,4 +30,3 @@ early_stopping_patience: 15
 reduce_lr_on_plateau_patience: 7
 reduce_lr_on_plateau_factor: 0.5
 lr: 0.00001
-

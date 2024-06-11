@@ -1,5 +1,7 @@
 import torch
+
 from src.utils.cls import Config, TrainingMode
+
 
 class SS2Mask2formerCollateFn:
     def __init__(self, config: Config, training: bool) -> None:
@@ -9,7 +11,7 @@ class SS2Mask2formerCollateFn:
 
     def __call__(self, batch):
         return self.collate_fn(batch)
-    
+
     def _get_collate_fn(self):
         if self.training:
             if self.config.mode == TrainingMode.SEMI_SUPERVISED:
@@ -20,7 +22,7 @@ class SS2Mask2formerCollateFn:
                 raise NotImplementedError
         else:
             return self.inference_collate_fn
-            
+
     def train_supervised_collate_fn(self, batch):
         class_labels = []
         mask_labels = []
@@ -38,7 +40,7 @@ class SS2Mask2formerCollateFn:
             'class_labels': class_labels,
             'mask_labels': mask_labels
         }
-    
+
     def train_semi_supervised_collate_fn(self, batch):
         batch_segmentation = []
         batch_consistency_student = []
