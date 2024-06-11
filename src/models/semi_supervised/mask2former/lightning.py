@@ -16,6 +16,7 @@ from src.data.collate import SS2Mask2formerCollateFn
 from src.data.processor import SS2ImageProcessor
 from src.data.tiling import Tiler
 from src.models.semi_supervised.mask2former.losses import SS2Mask2FormerLoss
+from src.models.semi_supervised.sam import SamForSemiSupervised
 from src.utils import func
 from src.utils.cls import Config
 
@@ -37,15 +38,16 @@ class Mask2FormerLightning(pl.LightningModule):
         self.input_image_sizes = None
         self.student = load_student_model(self.config)
         self.teacher = load_teacher_model(self.config)
+        self.sam = SamForSemiSupervised(config, class_labels=self.class_labels)
 
         self.input_masks_sizes = (256, 256)
 
         self.delta_c, self.delta_s = None, None
         self.update_loss_weights()
 
-        self.segmentation_loss_fct = self.configure_criterion()
-        self.consistency_loss_fct = self.configure_criterion()
-        # self.sam_loss_fct = SS2Mask2FormerLoss(self.student.config)
+        # self.segmentation_loss_fct = self.configure_criterion()
+        # self.consistency_loss_fct = self.configure_criterion()
+        self.sam_loss_fct = SS2Mask2FormerLoss(self.student.config)
 
         self.metrics = self.configure_metrics()
 
@@ -56,10 +58,10 @@ class Mask2FormerLightning(pl.LightningModule):
         self.input_image_sizes = segmentation_input['pixel_values'].shape[-2:]
 
         segmentation_loss = self.segmentation_forward(segmentation_input)
-        consistency_loss, consistency_outputs = self.consistency_forward(*consistency_inputs)
-        # sam_loss = self.sam_forward(consistency_inputs, consistency_outputs)
+        consistency_loss, student_outputs = self.consistency_forward(*consistency_inputs)
+        sam_loss = self.sam_forward(consistency_inputs[0], student_outputs)
 
-        loss = segmentation_loss + self.delta_c * consistency_loss  # + self.delta_s * sam_loss
+        loss = segmentation_loss + self.delta_c * consistency_loss + self.delta_s * sam_loss
         dict_loss = {
             'segmentation_loss': segmentation_loss,
             'consistency_loss': consistency_loss,
@@ -182,22 +184,47 @@ class Mask2FormerLightning(pl.LightningModule):
             self.log_consistency_images(inputs_student, masks_student, 'student')
             self.log_consistency_images(inputs_teacher, masks_teacher, 'teacher')
 
-        mask_labels, class_labels = [], []
-        for mask_teacher in masks_teacher:
-            device = mask_teacher.device
-            mask_teacher = mask_teacher.numpy(force=True)
-            binary_masks, labels = self.processor.convert_segmentation_map_to_binary_masks(mask_teacher)
-            mask_labels.append(torch.from_numpy(binary_masks).to(device=device))
-            class_labels.append(torch.from_numpy(labels).to(device=device))
+        mask_labels, class_labels = self.process_mask_labels(masks_teacher)
 
         outputs_student = self.student.forward(
             pixel_values=inputs_teacher['pixel_values'],
             pixel_mask=inputs_teacher['pixel_mask'],
             mask_labels=mask_labels,
-            class_labels=class_labels
+            class_labels=class_labels,
+            output_auxiliary_logits=True
         )
 
         return outputs_student.loss, outputs_student
+    
+    def sam_forward(self, inputs_student, outputs_student):
+        self.sam.current_step = self.current_step
+        self.sam.current_batch_idx = self.current_batch_idx
+
+        target_sizes = [self.config.tile_size] * self.config.batch_size
+        masks_student = self.processor.post_process_semantic_segmentation(outputs_student, target_sizes=target_sizes)
+        masks_sam = self.sam.forward(inputs_student['pixel_values'], masks_student)
+        mask_labels, class_labels = self.process_mask_labels(masks_sam)
+
+        sam_loss = self.sam_loss_fct.forward(
+            masks_queries_logits=outputs_student['masks_queries_logits'],
+            class_queries_logits=outputs_student['class_queries_logits'],
+            mask_labels=mask_labels,
+            class_labels=class_labels,
+            auxiliary_predictions=outputs_student['auxiliary_logits']
+        )
+
+        return sam_loss
+    
+    def process_mask_labels(self, masks):
+        mask_labels, class_labels = [], []
+        for mask in masks:
+            device = mask.device
+            mask = mask.numpy(force=True)
+            binary_masks, labels = self.processor.convert_segmentation_map_to_binary_masks(mask)
+            mask_labels.append(torch.from_numpy(binary_masks).to(device=device))
+            class_labels.append(torch.from_numpy(labels).to(device=device))
+        
+        return mask_labels, class_labels
     
     def inverse_process_mask_labels(self, inputs):
         mask_labels = inputs['mask_labels']
@@ -214,7 +241,7 @@ class Mask2FormerLightning(pl.LightningModule):
     def update_loss_weights(self):
         current_epoch = self.current_epoch + 1
         self.delta_c = 0.1 * math.exp(-5 * (1 - current_epoch / self.config.max_epochs))
-        # self.delta_s = 0.1 * math.exp(-5 * (current_epoch / self.config.max_epochs))
+        self.delta_s = 0.1 * math.exp(-5 * (current_epoch / self.config.max_epochs))
 
     @torch.no_grad()
     def update_teacher(self, teacher_momentum=0.994):
@@ -222,13 +249,13 @@ class Mask2FormerLightning(pl.LightningModule):
             teacher_param.data = teacher_momentum * teacher_param.data + (1 - teacher_momentum) * student_param.data
 
     def log_segmentation_images(self, inputs, labels, masks):
-        inputs = torch.moveaxis(inputs['pixel_values'][0], 0, -1).numpy(force=True)
+        image = func.process_image_for_wandb_logging(inputs['pixel_values'][0])
         labels = labels[0].numpy(force=True)
         masks = masks[0].numpy(force=True)
 
         wandb.log({
             'val/segmentation': wandb.Image(
-                inputs,
+                image,
                 masks={
                     'labels': {
                         'mask_data': labels,
@@ -243,41 +270,18 @@ class Mask2FormerLightning(pl.LightningModule):
         })
 
     def log_consistency_images(self, inputs, masks, num):
-        inputs = torch.moveaxis(inputs['pixel_values'][0], 0, -1).numpy(force=True)
+        image = func.process_image_for_wandb_logging(inputs['pixel_values'][0])
         masks = masks[0].numpy(force=True)
 
         wandb.log({
             f'val/consistency_{num}': wandb.Image(
-                inputs,
+                image,
                 masks={
                     'mask': {
                         'mask_data': masks,
                         'class_labels': self.class_labels,
                     }
                 }
-            )
-        })
-
-    def log_input_masks(self, inputs, input_masks_i, classes_i):
-        inputs = self.reshape_tensor(inputs['pixel_values'][0], self.input_masks_sizes, is_3d=True)
-        inputs = torch.moveaxis(inputs, 0, -1).numpy(force=True)
-        input_masks_i = input_masks_i.numpy(force=True)
-
-        masks = {}
-        class_idx_logged = 0
-        for class_label in range(len(self.class_labels)):
-            if class_label in classes_i:
-                masks[f'input_masks_{class_label}'] = {'mask_data': input_masks_i[class_idx_logged]}
-                class_idx_logged += 1
-            else:
-                masks[f'input_masks_{class_label}'] = {'mask_data': np.zeros(shape=self.input_masks_sizes)}
-
-        masks = dict(sorted(masks.items()))
-
-        wandb.log({
-            'val/sam_input_masks': wandb.Image(
-                inputs,
-                masks=masks
             )
         })
 

@@ -276,8 +276,8 @@ class SamForSemiSupervised(nn.Module):
     def log_input_masks(self, pixel_values, input_masks, input_points, input_labels, classes, indices):
         if self.current_step == 'validation' and self.current_batch_idx == 0:
             pixel_values = func.reshape_tensor(pixel_values[0], size=self.images_sizes)
-            self.log_pixel_values = torch.moveaxis(pixel_values, 0, -1).numpy(force=True)
-
+            self.log_pixel_values = func.process_image_for_wandb_logging(pixel_values)
+            
             input_masks = input_masks.numpy(force=True)
             classes_i = [classes[i] for i in range(len(indices)) if indices[i] == 0]
 
@@ -326,7 +326,7 @@ class SamForSemiSupervised(nn.Module):
 
     def show_points_on_image(self, input_points, input_labels):
         plt.figure(figsize=(10, 10))
-        plt.imshow(self.log_pixel_values.astype(np.float32))
+        plt.imshow(self.log_pixel_values)
 
         if input_points is not None and input_labels is not None:
             pos_points = input_points[input_labels == self.value_to_label[1]]
