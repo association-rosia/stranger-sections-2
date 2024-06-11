@@ -15,7 +15,7 @@ from src.utils.cls import Config
 
 def main():
     base_config = func.load_config('main')
-    wandb_run = func.get_run('8k6gh4tl')
+    wandb_run = func.get_run('jaom0qef') #  jaom0qef
     submission_name = f'{wandb_run.name}-{wandb_run.id}'
     tile_sizes = [
         wandb_run.config['tile_size'],
@@ -25,7 +25,7 @@ def main():
         'metric'
     ]
     tta_ks = [
-        # 'max',
+        'max',
         1
     ]
 

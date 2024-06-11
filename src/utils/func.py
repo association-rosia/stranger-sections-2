@@ -102,7 +102,7 @@ def load_unsupervised_image(config, tile: dict) -> np.ndarray:
     path = get_notebooks_path(path)
 
     with open(path, mode='br') as f:
-        image = np.array(Image.open(f).convert('RGB')) / 255.0
+        image = np.array(Image.open(f).convert('RGB')) # / 255.0
 
     x0, y0, x1, y1 = tile['bbox']
     image = image[x0:x1, y0:y1, :]
@@ -115,7 +115,7 @@ def load_supervised_image(config, tile: dict) -> np.ndarray:
     path = os.path.join(config.path.data.raw.train.labeled, f'{tile["image"]}.JPG')
 
     with open(path, mode='br') as f:
-        image = np.array(Image.open(f).convert('RGB')) / 255.0
+        image = np.array(Image.open(f).convert('RGB')) # / 255.0
 
     x0, y0, x1, y1 = tile['bbox']
     image = image[x0:x1, y0:y1, :]

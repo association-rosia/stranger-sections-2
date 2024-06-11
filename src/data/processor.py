@@ -46,7 +46,7 @@ class SS2ImageProcessor:
         if augmentation_mode is None:
             transforms = self.transforms
         else:
-            transforms = self.get_transforms(augmentation_mode)
+            transforms = self.get_transforms(augmentation_mode, self.preprocessing_mode)
 
         images = self._numpy_to_list(images)
         labels = self._numpy_to_list(labels)
@@ -93,7 +93,8 @@ class SS2ImageProcessor:
                 image_processed = image
                 mask_processed = mask
             
-            image_processed = torch.clamp(image_processed, min=0, max=1)
+            # image_processed = torch.clamp(image_processed, min=0, max=1)
+            image_processed /= 255
             image_processed = image_processed.to(dtype=torch.float16)
             images_processed.append(image_processed)
 
@@ -176,7 +177,7 @@ class SS2ImageProcessor:
                         augmentation_mode: AugmentationMode,
                         preprocessing_mode: PreprocessingMode
                         ) -> tv2T.Compose:
-        transforms = [tv2T.ToDtype(dtype=torch.float32, scale=True)]
+        transforms = [tv2T.ToDtype(dtype=torch.float32, scale=False)]
 
         if preprocessing_mode == PreprocessingMode.NONE:
             pass
@@ -193,8 +194,6 @@ class SS2ImageProcessor:
             transforms.extend(self._get_photometric_transforms())
         elif augmentation_mode == AugmentationMode.BOTH:
             transforms.extend(self._get_both_transforms())
-        elif augmentation_mode == AugmentationMode.NONE:
-            pass
         else:
             raise ValueError(f"Unknown augmentation_mode: {augmentation_mode}")
 

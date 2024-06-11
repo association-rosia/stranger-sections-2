@@ -10,6 +10,7 @@ from src.data.tiling import Tiler
 from src.models.train_model import load_model
 from src.submissions.tta import TestTimeAugmenter
 from src.utils.cls import Config, ModelName
+from transformers import Mask2FormerImageProcessor, SegformerImageProcessor
 
 
 class SS2InferenceModel(torch.nn.Module):
@@ -24,8 +25,7 @@ class SS2InferenceModel(torch.nn.Module):
         self.config = config
         self.map_location = map_location
         self.model = self._get_model()
-        self.processor = self._get_processor()
-        self.transforms = self._get_transforms()
+        self.processor, self.transforms = self._get_processor_transforms()
         self.base_model_forward = self._get_base_model_forward()
         self.collate = self._get_collate()
         self.tiler = Tiler(self.config)
@@ -43,22 +43,21 @@ class SS2InferenceModel(torch.nn.Module):
 
         return model
 
-    def _get_processor(self) -> SS2ImageProcessor:
-        return SS2ImageProcessor(self.config)
-    
-    def _get_transforms(self) -> Compose:
+    def _get_processor_transforms(self) -> tuple[Mask2FormerImageProcessor | SegformerImageProcessor, Compose]:
+
         # TODO: remove in the future to keep photometric only
         if hasattr(self.config, 'brightness_factor'):
             preprocessing_mode = PreprocessingMode.PHOTOMETRIC
         else:
             preprocessing_mode = PreprocessingMode.NONE
 
-        transforms = self.processor.get_transforms(
-            AugmentationMode.NONE, 
+        ss2_processor = SS2ImageProcessor(
+            self.config,
+            AugmentationMode.NONE,
             preprocessing_mode
         )
-
-        return transforms
+        
+        return ss2_processor.huggingface_processor, ss2_processor.transforms
         
     def _get_base_model_forward(self):
         if self.config.model_name == ModelName.MASK2FORMER:
@@ -85,7 +84,7 @@ class SS2InferenceModel(torch.nn.Module):
         
         tta_mask = []
         for tiled_image in tta_tiled_image:
-            inputs = self.processor.preprocess(tiled_image)
+            inputs = self.processor.preprocess(tiled_image, return_tensors='pt')
             inputs.to(device=self.map_location)
             tiled_mask = self.base_model_forward(inputs)
             # pred_masks = [pred_mask.numpy(force=True) for pred_mask in pred_masks]
@@ -100,8 +99,11 @@ class SS2InferenceModel(torch.nn.Module):
 
     def _mask2former_forward(self, inputs) -> torch.Tensor:
         # TODO: debug for mask2former
-        outputs = self.model(inputs)
-        pred_masks = self.processor.huggingface_processor.post_process_semantic_segmentation(outputs)
+        outputs = self.model(**inputs)
+        pred_masks = self.processor.post_process_semantic_segmentation(
+            outputs, 
+            target_sizes=[self.tile_size] * inputs['pixel_values'].shape[0]
+        )
 
         return pred_masks
 

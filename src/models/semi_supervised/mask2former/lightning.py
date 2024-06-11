@@ -137,6 +137,8 @@ class Mask2FormerLightning(pl.LightningModule):
         outputs = self.student.forward(
             pixel_values=inputs['pixel_values'],
             pixel_mask=inputs['pixel_mask'],
+            mask_labels=inputs['mask_labels'],
+            class_labels=inputs['class_labels'],
             # output_auxiliary_logits=True
         )
 
@@ -188,7 +190,7 @@ class Mask2FormerLightning(pl.LightningModule):
             mask_labels.append(torch.from_numpy(binary_masks).to(device=device))
             class_labels.append(torch.from_numpy(labels).to(device=device))
 
-        outputs_student = self.teacher.forward(
+        outputs_student = self.student.forward(
             pixel_values=inputs_teacher['pixel_values'],
             pixel_mask=inputs_teacher['pixel_mask'],
             mask_labels=mask_labels,
