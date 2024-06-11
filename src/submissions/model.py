@@ -56,7 +56,7 @@ class SS2InferenceModel(torch.nn.Module):
             preprocessing_mode
         )
         
-        return ss2_processor.huggingface_processor, ss2_processor.transforms
+        return ss2_processor.huggingface_processor, ss2_processor.preprocessing_transforms
         
     def _get_base_model_forward(self):
         if self.config.model_name == ModelName.MASK2FORMER:
