@@ -42,7 +42,7 @@ class SegFormerLightning(pl.LightningModule):
 
         self.student = load_student_model(config)
         self.teacher = load_teacher_model(config)
-        self.sam = SamForSemiSupervised(config, class_labels=self.class_labels, loss_fct=self.sam_loss_fct)
+        self.sam = SamForSemiSupervised(config, class_labels=self.class_labels)
 
         self.delta_c, self.delta_s = None, None
         self.update_loss_weights()
@@ -126,7 +126,6 @@ class SegFormerLightning(pl.LightningModule):
         outputs = self.student(**inputs)
         logits = func.reshape_tensor(outputs.logits, size=self.input_image_sizes)
         labels = func.reshape_tensor(inputs['labels'], size=self.input_image_sizes)
-
         loss = self.segmentation_loss_fct(logits, labels)
 
         if self.current_step == 'validation':
@@ -165,13 +164,13 @@ class SegFormerLightning(pl.LightningModule):
         self.sam.current_step = self.current_step
         self.sam.current_batch_idx = self.current_batch_idx
 
-        loss, consistency_masks, sam_masks = self.sam.forward(inputs[0], logits_student)
+        masks_student = func.logits_to_masks(logits_student)
+        pixel_values_student = inputs[0]['pixel_values']
+        sam_masks = self.sam.forward(pixel_values_student, masks_student)
+        loss = self.sam_loss_fct(logits_student, sam_masks.long())
 
         if self.current_step == 'validation':
             self.log('val/sam_loss', loss, on_epoch=True)
-
-            if self.current_batch_idx == 0:
-                self.log_sam_images(inputs[0], consistency_masks, sam_masks)
 
         return loss
 
@@ -216,27 +215,6 @@ class SegFormerLightning(pl.LightningModule):
                 masks={
                     'mask': {
                         'mask_data': masks,
-                        'class_labels': self.class_labels,
-                    }
-                }
-            )
-        })
-
-    def log_sam_images(self, inputs, consistency_masks, sam_masks):
-        inputs = torch.moveaxis(inputs['pixel_values'][0], 0, -1).numpy(force=True)
-        consistency_masks = consistency_masks[0].numpy(force=True)
-        sam_masks = sam_masks[0].numpy(force=True)
-
-        wandb.log({
-            'val/sam': wandb.Image(
-                inputs,
-                masks={
-                    'consistency': {
-                        'mask_data': consistency_masks,
-                        'class_labels': self.class_labels,
-                    },
-                    'sam': {
-                        'mask_data': sam_masks,
                         'class_labels': self.class_labels,
                     }
                 }

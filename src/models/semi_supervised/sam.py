@@ -4,6 +4,7 @@ import random
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from torch import nn
 import torch.nn.functional as F
 import wandb
 from PIL import Image
@@ -13,11 +14,12 @@ from src.utils import func
 from src.utils.cls import Config
 
 
-class SamForSemiSupervised:
-    def __init__(self, config: Config, class_labels, loss_fct):
+class SamForSemiSupervised(nn.Module):
+    def __init__(self, config: Config, class_labels):
+        super(SamForSemiSupervised, self).__init__()
+
         self.config = config
         self.class_labels = class_labels
-        self.loss_fct = loss_fct
 
         self.model, self.processor = self.load_model_processor()
         self.images_sizes = (1024, 1024)
@@ -28,28 +30,25 @@ class SamForSemiSupervised:
         self.current_batch_idx = None
 
     @torch.no_grad()
-    def forward(self, inputs, logits):
-        # TODO ne pas mettre des logits mais le mask directement
-        masks = func.logits_to_masks(logits)
-        image_embeddings, input_masks, classes, indices = self.get_inputs(inputs, masks)
+    def forward(self, pixel_values, template_masks):
+        image_embeddings, input_masks, classes, indices = self.get_inputs(pixel_values, template_masks)
         input_points, input_labels = self.build_input_points_labels(input_masks)
-        self.log_input_masks(inputs, input_masks, input_points, input_labels, classes, indices)
-        huggingface_inputs = self.build_huggingface_inputs(inputs, image_embeddings, input_points, input_labels)
+        self.log_input_masks(pixel_values, input_masks, input_points, input_labels, classes, indices)
+        huggingface_inputs = self.build_huggingface_inputs(pixel_values, image_embeddings, input_points, input_labels)
         outputs = self.model(**huggingface_inputs)
         pred_masks = self.post_process_outputs(huggingface_inputs, outputs, classes, indices)
-        loss = self.loss_fct(logits, pred_masks.long())
+        self.log_pred_mask(pixel_values, template_masks, pred_masks)
 
-        return loss, masks, pred_masks
+        return pred_masks
 
-    def get_image_embeddings(self, inputs):
-        pixel_values = func.reshape_tensor(inputs['pixel_values'], size=self.images_sizes)
-        self.model = self.model.to(dtype=pixel_values.dtype, device=pixel_values.device)
+    def get_image_embeddings(self, pixel_values):
+        pixel_values = func.reshape_tensor(pixel_values, size=self.images_sizes)
         image_embeddings = self.model.get_image_embeddings(pixel_values)
 
         return image_embeddings
 
-    def get_inputs(self, inputs, masks):
-        image_embeddings = self.get_image_embeddings(inputs)
+    def get_inputs(self, pixel_values, masks):
+        image_embeddings = self.get_image_embeddings(pixel_values)
         image_embeddings_list, input_masks_list, classes, indices = [], [], [], []
 
         for i in range(self.config.batch_size):
@@ -76,15 +75,14 @@ class SamForSemiSupervised:
 
     @staticmethod
     def stack_image_embeddings(image_embeddings, classes, index):
-        num_masks = len(classes)
-        images = torch.stack([image_embeddings[index] for _ in range(num_masks)])
-        indices = [index for _ in range(num_masks)]
+        images = torch.stack([image_embeddings[index]] * len(classes))
+        indices = [index] * len(classes)
 
         return images, indices
 
-    def build_huggingface_inputs(self, inputs, image_embeddings, input_points, input_labels):
+    def build_huggingface_inputs(self, pixel_values, image_embeddings, input_points, input_labels):
         inputs = self.processor(
-            images=inputs['pixel_values'],
+            images=pixel_values,
             input_points=input_points,
             input_labels=input_labels,
             return_tensors='pt'
@@ -277,9 +275,9 @@ class SamForSemiSupervised:
 
         return final_masks
 
-    def log_input_masks(self, inputs, input_masks, input_points, input_labels, classes, indices):
+    def log_input_masks(self, pixel_values, input_masks, input_points, input_labels, classes, indices):
         if self.current_step == 'validation' and self.current_batch_idx == 0:
-            pixel_values = func.reshape_tensor(inputs['pixel_values'][0], size=self.images_sizes)
+            pixel_values = func.reshape_tensor(pixel_values[0], size=self.images_sizes)
             self.log_pixel_values = torch.moveaxis(pixel_values, 0, -1).numpy(force=True)
 
             input_masks = input_masks.numpy(force=True)
@@ -291,7 +289,10 @@ class SamForSemiSupervised:
 
             for label in range(self.config.num_labels):
                 if label in classes_i:
-                    sam_input_masks[f'input_masks_{label}'] = {'mask_data': input_masks[stack]}
+                    sam_input_masks[f'input_masks_{label}'] = {
+                        'mask_data': input_masks[stack],
+                        'class_labels': self.class_labels
+                    }
 
                     sam_input_points.append(
                         self.show_points_on_image(
@@ -302,7 +303,10 @@ class SamForSemiSupervised:
 
                     stack += 1
                 else:
-                    sam_input_masks[f'input_masks_{label}'] = {'mask_data': np.zeros(shape=self.images_sizes)}
+                    sam_input_masks[f'input_masks_{label}'] = {
+                        'mask_data': np.zeros(shape=self.images_sizes),
+                        'class_labels': self.class_labels
+                    }
 
                     sam_input_points.append(
                         self.show_points_on_image(
@@ -350,7 +354,10 @@ class SamForSemiSupervised:
             output_masks = output_masks.numpy(force=True)
 
             sam_output_masks = {
-                f'output_masks_{j}': {'mask_data': output_masks[j] > 0.1} for j in range(len(output_masks))
+                f'output_masks_{j}': {
+                    'mask_data': output_masks[j] > 0.1,
+                    'class_labels': self.class_labels
+                } for j in range(len(output_masks))
             }
 
             wandb.log({
@@ -360,9 +367,31 @@ class SamForSemiSupervised:
                 )
             })
 
+    def log_pred_mask(self, pixel_values, template_masks, pred_masks):
+        if self.current_step == 'validation' and self.current_batch_idx == 0:
+            inputs = torch.moveaxis(pixel_values[0], 0, -1).numpy(force=True)
+            template_masks = template_masks[0].numpy(force=True)
+            pred_masks = pred_masks[0].numpy(force=True)
+
+            wandb.log({
+                'val/sam': wandb.Image(
+                    inputs,
+                    masks={
+                        'consistency': {
+                            'mask_data': template_masks,
+                            'class_labels': self.class_labels
+                        },
+                        'sam': {
+                            'mask_data': pred_masks,
+                            'class_labels': self.class_labels
+                        }
+                    }
+                )
+            })
+
     def load_model_processor(self):
         with torch.no_grad():
-            model = SamModel.from_pretrained(self.config.sam_id)
+            model = SamModel.from_pretrained(self.config.sam_id).half()
 
         processor = SamProcessor.from_pretrained(self.config.sam_id, do_rescale=False)
 
