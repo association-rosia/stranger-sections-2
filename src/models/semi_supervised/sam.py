@@ -111,49 +111,41 @@ class SamForSemiSupervised(nn.Module):
         return input_masks, classes
 
     def build_input_points_labels(self, input_masks):
-        valid_points_0, valid_points_1, num_points_0, num_points_1 = self.get_valid_points(input_masks)
+        valid_points_zeros, valid_points_ones, num_points_zeros, num_points_ones = self.get_valid_points(input_masks)
 
-        input_points_0, input_points_1, input_labels_0, input_labels_1 = self.get_input_points_labels(
-            valid_points_0=valid_points_0,
-            valid_points_1=valid_points_1,
-            num_points_0=num_points_0,
-            num_points_1=num_points_1
+        input_points_zeros, input_points_ones, input_labels_zeros, input_labels_ones = self.get_input_points_labels(
+            valid_points_zeros=valid_points_zeros,
+            valid_points_ones=valid_points_ones,
+            num_points_zeros=num_points_zeros,
+            num_points_ones=num_points_ones
         )
 
-        input_points = [[input_points_0[i] + input_points_1[i]] for i in range(len(input_masks))]
-        input_labels = [[input_labels_0[i] + input_labels_1[i]] for i in range(len(input_masks))]
+        input_points = [[input_points_zeros[i] + input_points_ones[i]] for i in range(len(input_masks))]
+        input_labels = [[input_labels_zeros[i] + input_labels_ones[i]] for i in range(len(input_masks))]
 
         return input_points, input_labels
 
     def get_valid_points(self, input_masks):
-        valid_points_0 = self.get_coordinates(input_masks, num_layers=10, value=0)
-        valid_points_1 = self.get_coordinates(input_masks, num_layers=10, value=1)
-        num_points_0, num_points_1 = self.get_num_points(input_masks, valid_points_0, valid_points_1)
+        valid_points_zeros = self.get_coordinates(input_masks, num_layers=10, value=0)
+        valid_points_ones = self.get_coordinates(input_masks, num_layers=10, value=1)
+        num_points_zeros, num_points_ones = self.get_num_points(input_masks, valid_points_zeros, valid_points_ones)
 
-        return valid_points_0, valid_points_1, num_points_0, num_points_1
+        return valid_points_zeros, valid_points_ones, num_points_zeros, num_points_ones
 
-    def get_input_points_labels(self, valid_points_0, valid_points_1, num_points_0, num_points_1):
-        input_points_0, input_labels_0 = self.get_random_points(
-            valid_points_0,
-            num_points_0,
+    def get_input_points_labels(self, valid_points_zeros, valid_points_ones, num_points_zeros, num_points_ones):
+        input_points_zeros, input_labels_zeros = self.get_random_points(
+            valid_points_zeros,
+            num_points_zeros,
             value=0
         )
 
-        input_points_1, input_labels_1 = self.get_random_points(
-            valid_points_1,
-            num_points_1,
+        input_points_ones, input_labels_ones = self.get_random_points(
+            valid_points_ones,
+            num_points_ones,
             value=1
         )
 
-        return input_points_0, input_points_1, input_labels_0, input_labels_1
-
-    @staticmethod
-    def calculate_rate_of_ones(input_masks):
-        total_elements = input_masks.numel()
-        ones_count = (input_masks == 1).sum().item()
-        rate = ones_count / total_elements
-
-        return rate
+        return input_points_zeros, input_points_ones, input_labels_zeros, input_labels_ones
 
     def get_random_points(self, valid_points, num_points, value):
         random_points, labels_points = [], []
@@ -189,23 +181,29 @@ class SamForSemiSupervised(nn.Module):
 
         return coordinates_list
 
-    def get_num_points(self, input_masks, valid_points_0, valid_points_1):
-        num_points_0, num_points_1 = [], []
+    def get_num_points(self, input_masks, valid_points_zeros, valid_points_ones):
+        num_points_zeros_list, num_points_ones_list = [], []
 
         for i in range(len(input_masks)):
-            rate_of_ones = self.calculate_rate_of_ones(input_masks[i])
+            count_ones = (input_masks[i] == 1).sum().item()
+            count_zeros = (input_masks[i] == 0).sum().item()
 
-            if rate_of_ones < 0.5:
-                current_num_points = min(int(rate_of_ones * self.config.sam_num_input_points), len(valid_points_1[i]))
-                num_points_1.append(current_num_points)
-                num_points_0.append(self.config.sam_num_input_points - current_num_points)
+            if count_ones < count_zeros:
+                num_points_ones = min(
+                    int(self.config.sam_input_points_rate_ones * self.config.sam_input_points_num),
+                    len(valid_points_ones[i])
+                )
+                num_points_ones_list.append(num_points_ones)
+                num_points_zeros_list.append(self.config.sam_input_points_num - num_points_ones)
             else:
-                current_num_points = min(int((1 - rate_of_ones) * self.config.sam_num_input_points),
-                                         len(valid_points_0[i]))
-                num_points_0.append(current_num_points)
-                num_points_1.append(self.config.sam_num_input_points - current_num_points)
+                num_points_zeros = min(
+                    int((1 - self.config.sam_input_points_rate_ones) * self.config.sam_input_points_num),
+                    len(valid_points_zeros[i])
+                )
+                num_points_zeros_list.append(num_points_zeros)
+                num_points_ones_list.append(self.config.sam_input_points_num - num_points_zeros)
 
-        return num_points_0, num_points_1
+        return num_points_zeros_list, num_points_ones_list
 
     def get_input_masks(self, consistency_masks, classes):
         input_masks = F.one_hot(consistency_masks.long(), num_classes=self.config.num_labels)
@@ -391,9 +389,9 @@ class SamForSemiSupervised(nn.Module):
 
     def load_model_processor(self):
         with torch.no_grad():
-            model = SamModel.from_pretrained(self.config.sam_id).half()
+            model = SamModel.from_pretrained(self.config.sam_model_id).half()
 
-        processor = SamProcessor.from_pretrained(self.config.sam_id, do_rescale=False)
+        processor = SamProcessor.from_pretrained(self.config.sam_model_id, do_rescale=False)
 
         for param in model.parameters():
             param.requires_grad = False
