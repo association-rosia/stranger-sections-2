@@ -35,7 +35,8 @@ class SS2ImageProcessor:
         self.augmentation_mode = augmentation_mode
         self.preprocessing_mode = preprocessing_mode
         self.huggingface_processor = self.get_huggingface_processor(config)
-        self.transforms = self.get_transforms(augmentation_mode, preprocessing_mode)
+        self.augmentation_transforms = self.get_augmentation_transforms(augmentation_mode)
+        self.preprocessing_transforms = self.get_preprocessing_transforms(preprocessing_mode)
 
     def preprocess(self,
                    images: np.ndarray | list[np.ndarray],
@@ -45,9 +46,9 @@ class SS2ImageProcessor:
                    ):
 
         if augmentation_mode is None:
-            transforms = self.transforms
+            transforms = self.augmentation_transforms
         else:
-            transforms = self.get_transforms(augmentation_mode, self.preprocessing_mode)
+            transforms = self.get_augmentation_transforms(augmentation_mode)
 
         images = self._numpy_to_list(images)
         labels = self._numpy_to_list(labels)
@@ -69,30 +70,31 @@ class SS2ImageProcessor:
 
         return array
 
-    @staticmethod
-    def _preprocess_images_only(images, transforms):
+    def _preprocess_images_only(self, images, transforms):
         images_processed = []
 
         for image in images:
-            image_processed = transforms(tv_tensors.Image(image))
-            image_processed = torch.clamp(image_processed, min=0, max=1)
+            image_processed = tv_tensors.Image(image)
+            image_processed = self.preprocessing_transforms(image_processed)
+            image_processed = transforms(image_processed)
+            image_processed /= 255
             image_processed = image_processed.to(dtype=torch.float16)
             images_processed.append(image_processed)
 
         return images_processed
 
-    @staticmethod
-    def _preprocess_images_masks(images, masks, transforms):
+    def _preprocess_images_masks(self, images, masks, transforms):
         images_processed, masks_processed = [], []
 
         for image, mask in zip(images, masks):
             image = tv_tensors.Image(image)
             mask = tv_tensors.Mask(mask)
-            image_processed, mask_processed = transforms(image, mask)
+            image_preprocessed, mask_preprocessed = self.preprocessing_transforms(image, mask)
+            image_processed, mask_processed = transforms(image_preprocessed, mask_preprocessed)
             # * To always keep multiple labels on a mask
             if len(torch.unique(mask_processed)) == 1:
-                image_processed = image
-                mask_processed = mask
+                image_processed = image_preprocessed
+                mask_processed = mask_preprocessed
             
             image_processed /= 255
             image_processed = image_processed.to(dtype=torch.float16)
@@ -171,12 +173,10 @@ class SS2ImageProcessor:
         photometric_transforms = self._get_photometric_transforms()
 
         return [*geometric_transforms, *photometric_transforms]
-
-    def get_transforms(self,
-                       augmentation_mode: AugmentationMode,
+    
+    def get_preprocessing_transforms(self,
                        preprocessing_mode: PreprocessingMode
-                       ) -> tv2T.Compose:
-
+                        ) -> tv2T.Compose:
         transforms = [tv2T.ToDtype(dtype=torch.float32, scale=False)]
 
         if preprocessing_mode == PreprocessingMode.NONE:
@@ -185,6 +185,14 @@ class SS2ImageProcessor:
             transforms.extend(self._get_constant_photometric_transforms())
         else:
             raise ValueError(f"Unknown preprocessing_mode: {preprocessing_mode}")
+        
+        return tv2T.Compose(transforms)
+
+    def get_augmentation_transforms(self,
+                       augmentation_mode: AugmentationMode,
+                       ) -> tv2T.Compose:
+
+        transforms = [tv2T.Identity()]
 
         if augmentation_mode == AugmentationMode.NONE:
             pass
