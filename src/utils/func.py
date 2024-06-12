@@ -187,7 +187,7 @@ def processing_time(function):
 
 def process_image_for_wandb_logging(pixel_values):
     return (
-        torch.moveaxis(pixel_values, 0, -1)
+        torch.moveaxis(pixel_values, -1, 0)
         .to(dtype=torch.float32)
         .numpy(force=True)
     )
