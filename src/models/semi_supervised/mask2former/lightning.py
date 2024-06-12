@@ -72,6 +72,7 @@ class Mask2FormerLightning(pl.LightningModule):
         dict_loss = {
             'segmentation_loss': segmentation_loss,
             'consistency_loss': consistency_loss,
+            'sam_loss': sam_loss,
             'loss': loss
         }
 
