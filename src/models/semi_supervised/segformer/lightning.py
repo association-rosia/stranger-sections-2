@@ -176,8 +176,8 @@ class SegFormerLightning(pl.LightningModule):
 
     def update_loss_weights(self):
         current_epoch = self.current_epoch + 1
-        self.delta_c = 0.1 * math.exp(-5 * (1 - current_epoch / self.config.max_epochs))
-        self.delta_s = 0.1 * math.exp(-5 * (current_epoch / self.config.max_epochs))
+        self.delta_c = self.config.factor_c * math.exp(-5 * (1 - current_epoch / self.config.max_epochs))
+        self.delta_s = self.config.factor_s * math.exp(-5 * (current_epoch / self.config.max_epochs))
 
     @torch.no_grad()
     def update_teacher(self):

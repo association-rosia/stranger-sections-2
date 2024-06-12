@@ -4,6 +4,8 @@ mode: 'semi_supervised'
 model_name: 'segformer'
 model_id: 'nvidia/segformer-b5-finetuned-ade-640-640' # 'nvidia/segformer-b0-finetuned-ade-512-512'
 checkpoint:
+factor_c: 0.1
+factor_s: 0.1
 teacher_momentum: 0.999
 
 sam_model_id: 'facebook/sam-vit-huge' # 'facebook/sam-vit-base'
