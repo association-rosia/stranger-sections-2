@@ -15,13 +15,13 @@ num_labels: 4
 random_state: 42
 
 contrast_factor: 1
-brightness_factor: 1
+brightness_factor: 0
 gamma_factor: 1
 hue_factor: 0
 sharpness_factor: 1
 saturation_factor: 1
 
-devices: [ 2 ] # [ 0, 1, 2, 3 ]
+devices: [ 0 ] # [ 0, 1, 2, 3 ]
 max_epochs: 100
 batch_size: 4
 num_workers: 23
