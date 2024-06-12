@@ -18,7 +18,7 @@ class SS2InferenceModel(torch.nn.Module):
             config: Config,
             map_location: str,
             tile_size: int,
-            test_time_augmenter: TestTimeAugmenter
+            tta_k: int | str,
     ) -> None:
         super().__init__()
         self.config = config
@@ -29,7 +29,10 @@ class SS2InferenceModel(torch.nn.Module):
         self.collate = self._get_collate()
         self.tiler = Tiler(self.config)
         self.tile_size = tile_size
-        self.test_time_augmenter = test_time_augmenter
+        self.test_time_augmenter = TestTimeAugmenter(
+            k=tta_k,
+            random_state=self.config.random_state
+        )
 
     def _get_model(self):
         model = load_model(self.config, map_location=self.map_location)

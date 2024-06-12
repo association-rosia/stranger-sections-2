@@ -1,6 +1,7 @@
 /data
 /models
 /submissions
+/visualisations
 **/.idea
 **/wandb
 **/.ipynb_checkpoints

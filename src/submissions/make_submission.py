@@ -6,7 +6,6 @@ import numpy as np
 from PIL import Image
 from tqdm import tqdm
 
-from src.data.processor import AugmentationMode
 from src.submissions.model import SS2InferenceModel
 from src.submissions.tta import TestTimeAugmenter
 from src.utils import func
@@ -31,22 +30,16 @@ def main():
         'max',
     ]
 
-    for checkpoint_type, tile_size, k in product(checkpoint_types, tile_sizes, tta_ks):
-        # for checkpoint_type, tiling in product(['metric'], [False]):
+    for checkpoint_type, tile_size, tta_k in product(checkpoint_types, tile_sizes, tta_ks):
         wandb_run.config['checkpoint'] = f'{wandb_run.name}-{wandb_run.id}-{checkpoint_type}.ckpt'
         config = Config(base_config, wandb_run.config)
         pathname = os.path.join(config.path.data.raw.test.unlabeled, '*.JPG')
-
-        test_time_augmenter = TestTimeAugmenter(
-            k=k,
-            random_state=42
-        )
 
         model = SS2InferenceModel(
             config,
             map_location=device,
             tile_size=tile_size,
-            test_time_augmenter=test_time_augmenter
+            tta_k=tta_k
         )
 
         submission_folder = os.path.join(
