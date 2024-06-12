@@ -241,7 +241,7 @@ class Mask2FormerLightning(pl.LightningModule):
         class_labels = inputs['class_labels']
         reconstructed_labels = []
         for masks, labels in zip(mask_labels, class_labels):
-            reconstructed_mask = torch.zeros(masks[0].shape, device=masks[0].device)
+            reconstructed_mask = torch.zeros_like(masks[0])
             for binary_mask, label in zip(masks, labels):
                 reconstructed_mask += binary_mask * label
             reconstructed_labels.append(reconstructed_mask.to(dtype=torch.int8))

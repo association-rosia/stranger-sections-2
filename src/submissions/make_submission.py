@@ -45,7 +45,7 @@ def main():
         submission_folder = os.path.join(
             config.path.submissions,
             submission_name,
-            f'{submission_name}-ckpt-{checkpoint_type}-tiling-{tile_size}-tta-{k}'
+            f'{submission_name}-ckpt-{checkpoint_type}-tiling-{tile_size}-tta-{tta_k}'
         )
 
         os.makedirs(submission_folder, exist_ok=True)
