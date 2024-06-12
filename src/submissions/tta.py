@@ -23,26 +23,18 @@ class GeometricAugmentation:
 
 
 class TestTimeAugmenter:
-    def __init__(self, augmentation_mode: AugmentationMode, k: int | str, return_probs: bool, random_state: int = None):
-        self.photometric_transforms = self._get_photometric_transforms(augmentation_mode)
+    def __init__(self, k: int | str, random_state: int = None):
         self.geometric_transform = self._get_geometric_transforms()
         self.params = [t.params for t in self.geometric_transform]
         self.product = list(itertools.product(*self.params))
         self.k = k
-        self.return_probs = return_probs
+        # self.return_probs = return_probs
         self.random_state = random_state
         self.numpy_random = np.random.RandomState(seed=random_state)
         self.queue = deque()
 
-    def _get_photometric_transforms(self, augmentation_mode: AugmentationMode) -> Compose:
-        transforms = [tv2T.Lambda(lambda x: x)]
-
-        if augmentation_mode in [AugmentationMode.PHOTOMETRIC, AugmentationMode.BOTH]:
-            transforms = SS2ImageProcessor._get_photometric_transforms()
-
-        return Compose(transforms)
-
-    def _get_geometric_transforms(augmentation_mode: AugmentationMode) -> list[GeometricAugmentation]:
+    @staticmethod
+    def _get_geometric_transforms() -> list[GeometricAugmentation]:
         # Only Rotation of 0 and 90 to avoid duplicate combination:
         # Rotation 90 + HorizontalFlip + VerticalFlip <=> Rotation 270
         # HorizontalFlip + VerticalFlip <=> Rotation 180
@@ -67,12 +59,12 @@ class TestTimeAugmenter:
         return parameters
 
     def _merge_augmentations(self, masks: list[torch.Tensor]) -> torch.Tensor:
-        tta_mask = torch.zeros(size=masks[0].shape, device=masks[0].device)
+        tta_mask = torch.zeros_like(masks[0])
         for mask in masks:
             tta_mask += mask
 
-        if not self.return_probs:
-            tta_mask = torch.argmax(tta_mask, dim=0)
+        # if not self.return_probs:
+        #     tta_mask = torch.argmax(tta_mask, dim=0)
 
         return tta_mask
 
@@ -83,7 +75,7 @@ class TestTimeAugmenter:
 
         for parameters in tta_parameters:
             augmented_image = torch.clone(image)
-            augmented_image = self.photometric_transforms(augmented_image)
+            # augmented_image = self.photometric_transforms(augmented_image)
             for augmentation, parameter in zip(self.geometric_transform, parameters):
                 augmented_image = augmentation.augment(augmented_image, parameter)
             augmented_images.append(augmented_image)
@@ -98,6 +90,7 @@ class TestTimeAugmenter:
                 deaugmented_mask = augmentation.deaugment(deaugmented_mask, parameter)
             deaugmented_masks.append(deaugmented_mask)
 
+        # return deaugmented_masks
         tta_mask = self._merge_augmentations(deaugmented_masks)
 
         return tta_mask

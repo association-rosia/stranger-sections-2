@@ -51,12 +51,14 @@ class Tiler:
     def untile(self, tiles: list[np.ndarray | torch.Tensor]) -> np.ndarray | torch.Tensor:
         size_h, size_w, tile_size = self.queue.popleft()
         bboxes = self._build_bboxes(size_h, size_w, tile_size)
+    
         num_labels = self.config.num_labels
+        dtype = tiles[0].dtype
 
         if isinstance(tiles[0], np.ndarray):
-            image = np.zeros((num_labels, size_h, size_w), np.float32)
+            image = np.zeros((num_labels, size_h, size_w), dtype=dtype)
         else:
-            image = torch.zeros((num_labels, size_h, size_w), dtype=torch.float32)
+            image = torch.zeros((num_labels, size_h, size_w), dtype=dtype)
 
         for (x0, y0, x1, y1), tile in zip(bboxes, tiles):
             image[:, x0:x1, y0:y1] += tile

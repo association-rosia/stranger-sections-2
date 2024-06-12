@@ -15,18 +15,20 @@ from src.utils.cls import Config
 
 def main():
     base_config = func.load_config('main')
-    wandb_run = func.get_run('jaom0qef') #  jaom0qef
+    wandb_run = func.get_run('mlmyc2ql') #  jaom0qef
     submission_name = f'{wandb_run.name}-{wandb_run.id}'
+    device = 'cuda:1'
     tile_sizes = [
         wandb_run.config['tile_size'],
         # 512
     ]
     checkpoint_types = [
-        'metric'
+        'micro',
+        'macro',
     ]
     tta_ks = [
+        1,
         'max',
-        1
     ]
 
     for checkpoint_type, tile_size, k in product(checkpoint_types, tile_sizes, tta_ks):
@@ -36,15 +38,13 @@ def main():
         pathname = os.path.join(config.path.data.raw.test.unlabeled, '*.JPG')
 
         test_time_augmenter = TestTimeAugmenter(
-            AugmentationMode.GEOMETRIC,
             k=k,
-            return_probs=False,
             random_state=42
         )
 
         model = SS2InferenceModel(
             config,
-            map_location='cuda:1',
+            map_location=device,
             tile_size=tile_size,
             test_time_augmenter=test_time_augmenter
         )
