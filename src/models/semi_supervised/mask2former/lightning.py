@@ -50,6 +50,13 @@ class Mask2FormerLightning(pl.LightningModule):
         self.sam_loss_fct = SS2Mask2FormerLoss(self.student.config)
 
         self.metrics = self.configure_metrics()
+        # For sweep purpose
+        self.best_metrics = {
+            'best/dice-macro': 0,
+            'best/dice-micro': 0,
+            'best/iou-macro': 0,
+            'best/iou-micro': 0,
+        }
 
         self.current_step = None
         self.current_batch_idx = None
@@ -92,6 +99,8 @@ class Mask2FormerLightning(pl.LightningModule):
 
     def on_validation_epoch_end(self):
         metrics = self.metrics.compute()
+        self.best_metrics = {k.replace('val', 'best'): max(self.best_metrics[k.replace('val', 'best')], v) for k, v in metrics.items()}
+        self.log_dict(self.best_metrics, on_epoch=True)
         self.log_dict(metrics, on_epoch=True)
         self.metrics.reset()
 

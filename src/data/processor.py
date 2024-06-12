@@ -77,7 +77,6 @@ class SS2ImageProcessor:
             image_processed = tv_tensors.Image(image)
             image_processed = self.preprocessing_transforms(image_processed)
             image_processed = transforms(image_processed)
-            image_processed = image_processed.to(dtype=torch.float16)
             images_processed.append(image_processed)
 
         return images_processed
@@ -132,7 +131,6 @@ class SS2ImageProcessor:
         return processor
 
     def _get_constant_photometric_transforms(self):
-        print(self.config.contrast_factor)
         transforms = [
             tv2T.Lambda(lambda x: tv2F.adjust_contrast(x, self.config.contrast_factor), tv_tensors.Image),
             tv2T.Lambda(lambda x: tv2F.adjust_brightness(x, self.config.contrast_factor), tv_tensors.Image),
@@ -220,7 +218,7 @@ def _debug():
     mask = np.load(path_mask)
 
     t_output = train_preprocessor.preprocess(img, mask)
-    e_output = eval_preprocessor.preprocess(img, mask)
+    e_output = eval_preprocessor.preprocess(img)
 
     return
 

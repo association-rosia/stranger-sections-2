@@ -104,7 +104,7 @@ def load_unsupervised_image(config, tile: dict) -> np.ndarray:
     path = get_notebooks_path(path)
 
     with open(path, mode='br') as f:
-        image = np.array(Image.open(f).convert('RGB')) # / 255.0
+        image = np.array(Image.open(f).convert('RGB'))
 
     x0, y0, x1, y1 = tile['bbox']
     image = image[x0:x1, y0:y1, :]
@@ -117,7 +117,7 @@ def load_supervised_image(config, tile: dict) -> np.ndarray:
     path = os.path.join(config.path.data.raw.train.labeled, f'{tile["image"]}.JPG')
 
     with open(path, mode='br') as f:
-        image = np.array(Image.open(f).convert('RGB')) # / 255.0
+        image = np.array(Image.open(f).convert('RGB'))
 
     x0, y0, x1, y1 = tile['bbox']
     image = image[x0:x1, y0:y1, :]
@@ -187,7 +187,7 @@ def processing_time(function):
 
 def process_image_for_wandb_logging(pixel_values):
     return (
-        torch.moveaxis(pixel_values, -1, 0)
+        torch.moveaxis(pixel_values, 0, -1)
         .to(dtype=torch.float32)
         .numpy(force=True)
     )
