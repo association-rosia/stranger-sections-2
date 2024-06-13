@@ -1,0 +1,159 @@
+method: bayes
+
+program:
+#  src/models/train_model_sweep.py
+
+metric:
+  name: best/iou-micro
+  goal: maximize
+
+parameters:
+  dry:
+    distribution: constant
+    value: false
+
+  mode:
+    distribution: constant
+    value: 'semi_supervised'
+
+  model_name:
+    distribution: constant
+    value: 'mask2former'
+
+  model_id:
+    distribution: constant
+    value: 'facebook/mask2former-swin-large-cityscapes-semantic'
+
+  do_normalize:
+    distribution: constant
+    values: false
+
+  contrast_factor:
+    distribution: q_uniform
+    min: 0
+    max: 10
+    q: 0.01
+
+  brightness_factor:
+    distribution: q_uniform
+    min: 0
+    max: 10
+    q: 0.01
+
+  gamma_factor:
+    distribution: q_uniform
+    min: 0
+    max: 10
+    q: 0.01
+
+  hue_factor:
+    distribution: q_uniform
+    min: -0.5
+    max: 0.5
+    q: 0.01
+
+  sharpness_factor:
+    distribution: q_uniform
+    min: 0
+    max: 15
+    q: 0.01
+
+  saturation_factor:
+    distribution: q_uniform
+    min: 0
+    max: 10
+    q: 0.01
+
+  tile_size:
+    distribution: constant
+    value: 384
+
+  num_labels:
+    distribution: constant
+    value: 4
+
+  random_state:
+    distribution: constant
+    value: 42
+
+  devices:
+    distribution: constant
+    value: [ 3 ]
+
+  max_epochs:
+    distribution: constant
+    value: 50
+
+  num_workers:
+    distribution: constant
+    value: 23
+
+  early_stopping_patience:
+    distribution: constant
+    value: 15
+
+  reduce_lr_on_plateau_patience:
+    distribution: constant
+    value: 5
+
+  reduce_lr_on_plateau_factor:
+    distribution: constant
+    value: 0.5
+
+  batch_size_supervised:
+    distribution: constant
+    value: 16
+
+  lr_supervised:
+    distribution: log_uniform
+    min: 0.000001
+    max: 0.001
+
+  batch_size_semi_supervised:
+    distribution: constant
+    value: 4
+
+  lr_semi_supervised:
+    distribution: log_uniform
+    min: 0.000001
+    max: 0.001
+
+  factor_c:
+    distribution: q_uniform
+    min: 0.01
+    max: 10
+    q: 0.01
+
+  factor_s:
+    distribution: q_uniform
+    min: 0.01
+    max: 10
+    q: 0.01
+
+  teacher_momentum:
+    distribution: q_uniform
+    min: 0.95
+    max: 0.999
+    q: 0.001
+
+  sam_model_id:
+    distribution: constant
+    value: 'facebook/sam-vit-huge'
+
+  sam_num_layers_kernel:
+    distribution: q_uniform
+    min: 0
+    max: 50
+    q: 1
+
+  sam_input_points_num:
+    distribution: q_uniform
+    min: 10
+    max: 1000
+    q: 10
+
+  sam_input_points_rate_ones:
+    distribution: q_uniform
+    min: 0
+    max: 1
+    q: 0.05
