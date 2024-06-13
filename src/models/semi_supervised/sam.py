@@ -126,8 +126,8 @@ class SamForSemiSupervised(nn.Module):
         return input_points, input_labels
 
     def get_valid_points(self, input_masks):
-        valid_points_zeros = self.get_coordinates(input_masks, num_layers=10, value=0)
-        valid_points_ones = self.get_coordinates(input_masks, num_layers=10, value=1)
+        valid_points_zeros = self.get_coordinates(input_masks, value=0)
+        valid_points_ones = self.get_coordinates(input_masks, value=1)
         num_points_zeros, num_points_ones = self.get_num_points(input_masks, valid_points_zeros, valid_points_ones)
 
         return valid_points_zeros, valid_points_ones, num_points_zeros, num_points_ones
@@ -162,11 +162,10 @@ class SamForSemiSupervised(nn.Module):
 
         return random_points, labels_points
 
-    @staticmethod
-    def get_coordinates(input_masks, num_layers, value):
+    def get_coordinates(self, input_masks, value):
         device = input_masks.device
         mask = (input_masks == value).float()
-        kernel = torch.ones((1, 1, num_layers, num_layers), device=device)
+        kernel = torch.ones((1, 1, self.config.sam_num_layers_kernel, self.config.sam_num_layers_kernel), device=device)
 
         mask = mask.unsqueeze(1)
         mask = F.conv2d(mask, kernel, padding=1)

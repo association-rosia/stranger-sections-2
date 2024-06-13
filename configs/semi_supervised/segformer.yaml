@@ -1,4 +1,4 @@
-dry: false
+dry: true
 
 mode: 'semi_supervised'
 model_name: 'segformer'
@@ -9,6 +9,7 @@ factor_s: 0.1
 teacher_momentum: 0.999
 
 sam_model_id: 'facebook/sam-vit-huge' # 'facebook/sam-vit-base'
+sam_num_layers_kernel: 10
 sam_input_points_num: 100
 sam_input_points_rate_ones: 0.5
 
