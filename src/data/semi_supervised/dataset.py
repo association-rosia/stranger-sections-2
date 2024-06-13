@@ -56,6 +56,7 @@ class SS2SemiSupervisedDataset(Dataset):
 
         images = self.processor.preprocess(
             images=images,
+            preprocessing_mode=PreprocessingMode.NONE,
             augmentation_mode=AugmentationMode.GEOMETRIC,
             apply_huggingface=False,
         )

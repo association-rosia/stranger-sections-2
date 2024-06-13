@@ -41,22 +41,28 @@ class SS2ImageProcessor:
     def preprocess(self,
                    images: np.ndarray | list[np.ndarray],
                    labels: np.ndarray | list[np.ndarray] = None,
+                   preprocessing_mode: PreprocessingMode = None,
                    augmentation_mode: AugmentationMode = None,
                    apply_huggingface: bool = True
                    ):
 
-        if augmentation_mode is None:
-            transforms = self.augmentation_transforms
+        if preprocessing_mode is None:
+            preprocessing_transforms = self.preprocessing_transforms
         else:
-            transforms = self.get_augmentation_transforms(augmentation_mode)
+            preprocessing_transforms = self.get_preprocessing_transforms(preprocessing_mode)
+
+        if augmentation_mode is None:
+            augmenation_transforms = self.augmentation_transforms
+        else:
+            augmenation_transforms = self.get_augmentation_transforms(augmentation_mode)
 
         images = self._numpy_to_list(images)
         labels = self._numpy_to_list(labels)
 
         if labels is not None:
-            inputs, labels = self._preprocess_images_masks(images, labels, transforms)
+            inputs, labels = self._preprocess_images_masks(images, labels, preprocessing_transforms, augmenation_transforms)
         else:
-            inputs = self._preprocess_images_only(images, transforms)
+            inputs = self._preprocess_images_only(images, preprocessing_transforms, augmenation_transforms)
 
         if apply_huggingface:
             inputs = self.huggingface_processor.preprocess(inputs, segmentation_maps=labels, return_tensors='pt')
@@ -70,25 +76,25 @@ class SS2ImageProcessor:
 
         return array
 
-    def _preprocess_images_only(self, images, transforms):
+    def _preprocess_images_only(self, images, preprocessing_transforms, augmentation_transforms):
         images_processed = []
 
         for image in images:
             image_processed = tv_tensors.Image(image)
-            image_processed = self.preprocessing_transforms(image_processed)
-            image_processed = transforms(image_processed)
+            image_processed = preprocessing_transforms(image_processed)
+            image_processed = augmentation_transforms(image_processed)
             images_processed.append(image_processed)
 
         return images_processed
 
-    def _preprocess_images_masks(self, images, masks, transforms):
+    def _preprocess_images_masks(self, images, masks, preprocessing_transforms, augmentation_transforms):
         images_processed, masks_processed = [], []
 
         for image, mask in zip(images, masks):
             image = tv_tensors.Image(image)
             mask = tv_tensors.Mask(mask)
-            image_preprocessed, mask_preprocessed = self.preprocessing_transforms(image, mask)
-            image_processed, mask_processed = transforms(image_preprocessed, mask_preprocessed)
+            image_preprocessed, mask_preprocessed = preprocessing_transforms(image, mask)
+            image_processed, mask_processed = augmentation_transforms(image_preprocessed, mask_preprocessed)
             # * To always keep multiple labels on a mask
             if len(torch.unique(mask_processed)) == 1:
                 image_processed = image_preprocessed
