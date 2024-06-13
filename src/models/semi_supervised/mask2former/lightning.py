@@ -45,8 +45,6 @@ class Mask2FormerLightning(pl.LightningModule):
         self.delta_c, self.delta_s = None, None
         self.update_loss_weights()
 
-        # self.segmentation_loss_fct = self.configure_criterion()
-        # self.consistency_loss_fct = self.configure_criterion()
         self.sam_loss_fct = SS2Mask2FormerLoss(self.student.config)
 
         self.metrics = self.configure_metrics()
@@ -145,64 +143,40 @@ class Mask2FormerLightning(pl.LightningModule):
         return metrics
 
     def segmentation_forward(self, inputs):
-        outputs = self.student.forward(
-            pixel_values=inputs['pixel_values'],
-            pixel_mask=inputs['pixel_mask'],
-            mask_labels=inputs['mask_labels'],
-            class_labels=inputs['class_labels'],
-            # output_auxiliary_logits=True
-        )
-
+        outputs = self.student.forward(**inputs)
         target_sizes = [self.config.tile_size] * self.config.batch_size
         outputs_processed = self.processor.post_process_semantic_segmentation(outputs, target_sizes=target_sizes)
         masks = torch.stack(outputs_processed)
         labels = torch.stack(self.inverse_process_mask_labels(inputs))
 
         if self.current_step == 'validation':
-            # masks = self.reshape_outputs(outputs, return_mask=True)
             self.metrics.update(masks, labels)
 
             if self.current_batch_idx == 0:
                 self.log_segmentation_images(inputs, labels, masks)
-        
-        # segmentation_loss = self.segmentation_loss_fct.forward(
-        #     masks_queries_logits=outputs.masks_queries_logits,
-        #     class_queries_logits=outputs.class_queries_logits,
-        #     mask_labels=inputs['mask_labels'],
-        #     class_labels=inputs['class_labels'],
-        #     auxiliary_predictions=outputs.auxiliary_logits,
-        # )
 
-        return outputs.loss # segmentation_loss
+        return outputs.loss
 
     def consistency_forward(self, inputs_student, inputs_teacher):
         target_sizes = [self.config.tile_size] * self.config.batch_size
         
-        outputs_teacher = self.teacher.forward(
-            pixel_values=inputs_teacher['pixel_values'],
-            pixel_mask=inputs_teacher['pixel_mask']
-        )
-
+        outputs_teacher = self.teacher.forward(**inputs_teacher)
         outputs_processed_teacher = self.processor.post_process_semantic_segmentation(outputs_teacher, target_sizes=target_sizes)
         masks_teacher = torch.stack(outputs_processed_teacher)
-
-        if self.current_step == 'validation' and self.current_batch_idx == 0:
-            outputs_processed_student = self.processor.post_process_semantic_segmentation(outputs_teacher,
-                                                                                          target_sizes=target_sizes)
-            masks_student = torch.stack(outputs_processed_student)
-
-            self.log_consistency_images(inputs_student, masks_student, 'student')
-            self.log_consistency_images(inputs_teacher, masks_teacher, 'teacher')
-
         mask_labels, class_labels = self.process_mask_labels(masks_teacher)
 
         outputs_student = self.student.forward(
-            pixel_values=inputs_teacher['pixel_values'],
-            pixel_mask=inputs_teacher['pixel_mask'],
+            pixel_values=inputs_student['pixel_values'],
+            pixel_mask=inputs_student['pixel_mask'],
             mask_labels=mask_labels,
             class_labels=class_labels,
             output_auxiliary_logits=True
         )
+
+        if self.current_step == 'validation' and self.current_batch_idx == 0:
+            masks_student = self.processor.post_process_semantic_segmentation(outputs_teacher, target_sizes=target_sizes)
+            self.log_consistency_images(inputs_student, masks_student, 'student')
+            self.log_consistency_images(inputs_teacher, masks_teacher, 'teacher')
 
         return outputs_student.loss, outputs_student
     
@@ -254,7 +228,7 @@ class Mask2FormerLightning(pl.LightningModule):
         self.delta_s = 0.1 * math.exp(-5 * (current_epoch / self.config.max_epochs))
 
     @torch.no_grad()
-    def update_teacher(self, teacher_momentum=0.994):
+    def update_teacher(self, teacher_momentum=0.99):
         for teacher_param, student_param in zip(self.teacher.parameters(), self.student.parameters()):
             teacher_param.data = teacher_momentum * teacher_param.data + (1 - teacher_momentum) * student_param.data
 
@@ -299,11 +273,8 @@ class Mask2FormerLightning(pl.LightningModule):
     def get_original_mask(masks):
         output_mask = torch.zeros_like(masks[0])
 
-        # Iterate through the stacked binary mask tensors
         for index, mask in enumerate(masks):
-            # Find the indices where the mask is True
             true_indices = torch.nonzero(mask, as_tuple=False)
-            # Update the output tensor with the corresponding indices
             output_mask[true_indices[:, 0], true_indices[:, 1]] = index + 1
 
         return output_mask
