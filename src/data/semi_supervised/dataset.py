@@ -3,7 +3,7 @@ import random
 import torch
 from torch.utils.data import Dataset
 
-from src.data.processor import SS2ImageProcessor, AugmentationMode
+from src.data.processor import SS2ImageProcessor, AugmentationMode, PreprocessingMode
 from src.data.tiling import Tiler
 from src.utils import func
 from src.utils.cls import Config
@@ -15,7 +15,10 @@ class SS2SemiSupervisedDataset(Dataset):
         self.config = config
         self.labeled_tiles = labeled_tiles
         self.unlabeled_tiles = unlabeled_tiles
-        self.processor = SS2ImageProcessor(self.config)
+        self.processor = SS2ImageProcessor(
+            self.config,
+            preprocessing_mode=PreprocessingMode.PHOTOMETRIC
+        )
 
     def __len__(self) -> int:
         return len(self.labeled_tiles)
@@ -53,6 +56,7 @@ class SS2SemiSupervisedDataset(Dataset):
 
         images = self.processor.preprocess(
             images=images,
+            preprocessing_mode=PreprocessingMode.NONE,
             augmentation_mode=AugmentationMode.GEOMETRIC,
             apply_huggingface=False,
         )

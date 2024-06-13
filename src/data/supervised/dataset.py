@@ -15,7 +15,7 @@ class SS2SupervisedDataset(Dataset):
         self.processor = SS2ImageProcessor(
             self.config,
             preprocessing_mode=PreprocessingMode.PHOTOMETRIC,
-            augmentation_mode=AugmentationMode.NONE
+            augmentation_mode=AugmentationMode.BOTH
         )
 
     def __len__(self) -> int:

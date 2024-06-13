@@ -6,7 +6,6 @@ import numpy as np
 from PIL import Image
 from tqdm import tqdm
 
-from src.data.processor import AugmentationMode
 from src.submissions.model import SS2InferenceModel
 from src.submissions.tta import TestTimeAugmenter
 from src.utils import func
@@ -15,44 +14,38 @@ from src.utils.cls import Config
 
 def main():
     base_config = func.load_config('main')
-    wandb_run = func.get_run('8k6gh4tl')
+    wandb_run = func.get_run('mlmyc2ql') #  jaom0qef
     submission_name = f'{wandb_run.name}-{wandb_run.id}'
+    device = 'cuda:1'
     tile_sizes = [
         wandb_run.config['tile_size'],
         # 512
     ]
     checkpoint_types = [
-        'metric'
+        'micro',
+        'macro',
     ]
     tta_ks = [
-        # 'max',
-        1
+        1,
+        'max',
     ]
 
-    for checkpoint_type, tile_size, k in product(checkpoint_types, tile_sizes, tta_ks):
-        # for checkpoint_type, tiling in product(['metric'], [False]):
+    for checkpoint_type, tile_size, tta_k in product(checkpoint_types, tile_sizes, tta_ks):
         wandb_run.config['checkpoint'] = f'{wandb_run.name}-{wandb_run.id}-{checkpoint_type}.ckpt'
         config = Config(base_config, wandb_run.config)
         pathname = os.path.join(config.path.data.raw.test.unlabeled, '*.JPG')
 
-        test_time_augmenter = TestTimeAugmenter(
-            AugmentationMode.GEOMETRIC,
-            k=k,
-            return_probs=False,
-            random_state=42
-        )
-
         model = SS2InferenceModel(
             config,
-            map_location='cuda:1',
+            map_location=device,
             tile_size=tile_size,
-            test_time_augmenter=test_time_augmenter
+            tta_k=tta_k
         )
 
         submission_folder = os.path.join(
             config.path.submissions,
             submission_name,
-            f'{submission_name}-ckpt-{checkpoint_type}-tiling-{tile_size}-tta-{k}'
+            f'{submission_name}-ckpt-{checkpoint_type}-tiling-{tile_size}-tta-{tta_k}'
         )
 
         os.makedirs(submission_folder, exist_ok=True)

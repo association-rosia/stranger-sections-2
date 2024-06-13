@@ -24,6 +24,12 @@ class Mask2FormerLightning(pl.LightningModule):
         self.processor = SS2ImageProcessor.get_huggingface_processor(config)
         self.metrics = self.configure_metrics()
         self.class_labels = {0: 'Background', 1: 'Inertinite', 2: 'Vitrinite', 3: 'Liptinite'}
+        self.best_metrics = {
+            'best/dice-macro': 0,
+            'best/dice-micro': 0,
+            'best/iou-macro': 0,
+            'best/iou-micro': 0,
+        }
 
     def forward(self, inputs):
         outputs = self.model(**inputs)
@@ -49,6 +55,8 @@ class Mask2FormerLightning(pl.LightningModule):
 
     def on_validation_epoch_end(self) -> None:
         metrics = self.metrics.compute()
+        self.best_metrics = {k.replace('val', 'best'): max(self.best_metrics[k.replace('val', 'best')], v) for k, v in metrics.items()}
+        self.log_dict(self.best_metrics, on_epoch=True)
         self.log_dict(metrics, on_epoch=True)
         self.metrics.reset()
 
