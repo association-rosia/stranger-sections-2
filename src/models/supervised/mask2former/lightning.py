@@ -61,7 +61,7 @@ class Mask2FormerLightning(pl.LightningModule):
         self.metrics.reset()
 
     def validation_log(self, inputs, outputs, batch_idx):
-        target_sizes = [self.config.tile_size] * self.config.batch_size
+        target_sizes = [self.config.tile_size] * self.config.batch_size_supervised
         masks = self.processor.post_process_semantic_segmentation(outputs, target_sizes)
         ground_truth = self.inverse_process_mask_labels(inputs)
 
@@ -104,7 +104,7 @@ class Mask2FormerLightning(pl.LightningModule):
         return reconstructed_labels
 
     def configure_optimizers(self):
-        optimizer = AdamW(params=self.model.parameters(), lr=self.config.lr)
+        optimizer = AdamW(params=self.model.parameters(), lr=self.config.lr_supervised)
         scheduler = {
             'scheduler': ReduceLROnPlateau(
                 optimizer,
@@ -134,7 +134,7 @@ class Mask2FormerLightning(pl.LightningModule):
     def train_dataloader(self):
         return DataLoader(
             dataset=spv_dataset.make_train_dataset(self.config),
-            batch_size=self.config.batch_size,
+            batch_size=self.config.batch_size_supervised,
             num_workers=self.config.num_workers,
             shuffle=True,
             drop_last=True,
@@ -145,7 +145,7 @@ class Mask2FormerLightning(pl.LightningModule):
     def val_dataloader(self):
         return DataLoader(
             dataset=spv_dataset.make_val_dataset(self.config),
-            batch_size=self.config.batch_size,
+            batch_size=self.config.batch_size_supervised,
             num_workers=self.config.num_workers,
             shuffle=False,
             drop_last=True,

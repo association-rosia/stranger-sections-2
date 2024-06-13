@@ -1,7 +1,6 @@
 method: bayes
 
-program:
-#  src/models/train_model_sweep.py
+program: src/models/train_model_sweep.py
 
 metric:
   name: best/iou-micro
@@ -11,10 +10,6 @@ parameters:
   dry:
     distribution: constant
     value: false
-
-  mode:
-    distribution: constant
-    value: 'semi_supervised'
 
   model_name:
     distribution: constant
@@ -26,7 +21,7 @@ parameters:
 
   do_normalize:
     distribution: constant
-    values: false
+    value: false
 
   contrast_factor:
     distribution: q_uniform
@@ -75,10 +70,6 @@ parameters:
   random_state:
     distribution: constant
     value: 42
-
-  devices:
-    distribution: constant
-    value: [ 3 ]
 
   max_epochs:
     distribution: constant
