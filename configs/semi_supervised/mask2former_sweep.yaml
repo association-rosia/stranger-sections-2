@@ -32,13 +32,13 @@ parameters:
   brightness_factor:
     distribution: q_uniform
     min: 0
-    max: 10
+    max: 2
     q: 0.01
 
   gamma_factor:
     distribution: q_uniform
     min: 0
-    max: 10
+    max: 2
     q: 0.01
 
   hue_factor:
@@ -50,13 +50,13 @@ parameters:
   sharpness_factor:
     distribution: q_uniform
     min: 0
-    max: 15
-    q: 0.01
+    max: 100
+    q: 0.1
 
   saturation_factor:
     distribution: q_uniform
     min: 0
-    max: 10
+    max: 3
     q: 0.01
 
   tile_size:
@@ -96,7 +96,7 @@ parameters:
     value: 16
 
   lr_supervised:
-    distribution: log_uniform
+    distribution: log_uniform_values
     min: 0.000001
     max: 0.001
 
@@ -105,7 +105,7 @@ parameters:
     value: 4
 
   lr_semi_supervised:
-    distribution: log_uniform
+    distribution: log_uniform_values
     min: 0.000001
     max: 0.001
 
