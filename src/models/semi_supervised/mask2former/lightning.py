@@ -104,7 +104,7 @@ class Mask2FormerLightning(pl.LightningModule):
         self.metrics.reset()
 
     def configure_optimizers(self):
-        optimizer = AdamW(params=self.student.parameters(), lr=self.config.lr)
+        optimizer = AdamW(params=self.student.parameters(), lr=self.config.lr_semi_supervised)
 
         scheduler = {
             'scheduler': ReduceLROnPlateau(
@@ -144,7 +144,7 @@ class Mask2FormerLightning(pl.LightningModule):
 
     def segmentation_forward(self, inputs):
         outputs = self.student.forward(**inputs)
-        target_sizes = [self.config.tile_size] * self.config.batch_size
+        target_sizes = [self.config.tile_size] * self.config.batch_size_semi_supervised
         outputs_processed = self.processor.post_process_semantic_segmentation(outputs, target_sizes=target_sizes)
         masks = torch.stack(outputs_processed)
         labels = torch.stack(self.inverse_process_mask_labels(inputs))
@@ -158,7 +158,7 @@ class Mask2FormerLightning(pl.LightningModule):
         return outputs.loss
 
     def consistency_forward(self, inputs_student, inputs_teacher):
-        target_sizes = [self.config.tile_size] * self.config.batch_size
+        target_sizes = [self.config.tile_size] * self.config.batch_size_semi_supervised
         
         outputs_teacher = self.teacher.forward(**inputs_teacher)
         outputs_processed_teacher = self.processor.post_process_semantic_segmentation(outputs_teacher, target_sizes=target_sizes)
@@ -184,7 +184,7 @@ class Mask2FormerLightning(pl.LightningModule):
         self.sam.current_step = self.current_step
         self.sam.current_batch_idx = self.current_batch_idx
 
-        target_sizes = [self.config.tile_size] * self.config.batch_size
+        target_sizes = [self.config.tile_size] * self.config.batch_size_semi_supervised
         masks_student = self.processor.post_process_semantic_segmentation(outputs_student, target_sizes=target_sizes)
         masks_sam = self.sam.forward(inputs_student['pixel_values'], masks_student)
         mask_labels, class_labels = self.process_mask_labels(masks_sam)
@@ -224,13 +224,14 @@ class Mask2FormerLightning(pl.LightningModule):
 
     def update_loss_weights(self):
         current_epoch = self.current_epoch + 1
-        self.delta_c = 0.1 * math.exp(-5 * (1 - current_epoch / self.config.max_epochs))
-        self.delta_s = 0.1 * math.exp(-5 * (current_epoch / self.config.max_epochs))
+        self.delta_c = self.config.factor_c * math.exp(-5 * (1 - current_epoch / self.config.max_epochs))
+        self.delta_s = self.config.factor_s * math.exp(-5 * (current_epoch / self.config.max_epochs))
 
     @torch.no_grad()
-    def update_teacher(self, teacher_momentum=0.99):
+    def update_teacher(self):
         for teacher_param, student_param in zip(self.teacher.parameters(), self.student.parameters()):
-            teacher_param.data = teacher_momentum * teacher_param.data + (1 - teacher_momentum) * student_param.data
+            teacher_param.data = (self.config.teacher_momentum * teacher_param.data +
+                                  (1 - self.config.teacher_momentum) * student_param.data)
 
     def log_segmentation_images(self, inputs, labels, masks):
         image = func.process_image_for_wandb_logging(inputs['pixel_values'][0])
@@ -282,7 +283,7 @@ class Mask2FormerLightning(pl.LightningModule):
     def train_dataloader(self):
         return DataLoader(
             dataset=ssp_dataset.make_train_dataset(self.config, self.labeled_tiles, self.unlabeled_tiles),
-            batch_size=self.config.batch_size,
+            batch_size=self.config.batch_size_semi_supervised,
             num_workers=self.config.num_workers,
             shuffle=True,
             drop_last=True,
@@ -293,7 +294,7 @@ class Mask2FormerLightning(pl.LightningModule):
     def val_dataloader(self):
         return DataLoader(
             dataset=ssp_dataset.make_val_dataset(self.config, self.labeled_tiles, self.unlabeled_tiles),
-            batch_size=self.config.batch_size,
+            batch_size=self.config.batch_size_semi_supervised,
             num_workers=self.config.num_workers,
             shuffle=False,
             drop_last=True,

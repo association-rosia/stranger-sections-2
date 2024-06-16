@@ -95,13 +95,6 @@ def get_trainer(config: Config):
         verbose=True
     )
 
-    # early_stopping_callback = pl.callbacks.EarlyStopping(
-    #     monitor='val/iou-micro',
-    #     mode='max',
-    #     patience=config.early_stopping_patience,
-    #     verbose=True
-    # )
-
     if config.dry:
         trainer = pl.Trainer(
             max_epochs=2,

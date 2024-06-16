@@ -51,7 +51,7 @@ class SamForSemiSupervised(nn.Module):
         image_embeddings = self.get_image_embeddings(pixel_values)
         image_embeddings_list, input_masks_list, classes, indices = [], [], [], []
 
-        for i in range(self.config.batch_size):
+        for i in range(self.config.batch_size_semi_supervised):
             input_masks_i, classes_i = self.stack_input_masks(
                 masks=masks,
                 index=i
