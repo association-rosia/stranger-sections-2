@@ -24,28 +24,34 @@ parameters:
     value: false
 
   contrast_factor:
-    distribution: constant
-    value: 1
+    distribution: q_uniform
+    min: 0.01
+    max: 20
+    q: 0.01
 
   brightness_factor:
-    distribution: constant
-    value: 1
+    distribution: q_uniform
+    min: 0.01
+    max: 5
+    q: 0.01
 
   gamma_factor:
-    distribution: constant
-    value: 1
-
-  hue_factor:
-    distribution: constant
-    value: 0
+    distribution: q_uniform
+    min: 0.1
+    max: 3
+    q: 0.1
 
   sharpness_factor:
-    distribution: constant
-    value: 1
+    distribution: q_uniform
+    min: 0.01
+    max: 30
+    q: 0.01
 
   saturation_factor:
-    distribution: constant
-    value: 1
+    distribution: q_uniform
+    min: 0.01
+    max: 5
+    q: 0.01
 
   tile_size:
     distribution: constant

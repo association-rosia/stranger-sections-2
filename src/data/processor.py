@@ -141,7 +141,6 @@ class SS2ImageProcessor:
             tv2T.Lambda(lambda x: tv2F.adjust_contrast(x, self.config.contrast_factor), tv_tensors.Image),
             tv2T.Lambda(lambda x: tv2F.adjust_brightness(x, self.config.contrast_factor), tv_tensors.Image),
             tv2T.Lambda(lambda x: tv2F.adjust_gamma(x, self.config.gamma_factor), tv_tensors.Image),
-            tv2T.Lambda(lambda x: tv2F.adjust_hue(x, self.config.hue_factor), tv_tensors.Image),
             tv2T.Lambda(lambda x: tv2F.adjust_sharpness(x, self.config.sharpness_factor), tv_tensors.Image),
             tv2T.Lambda(lambda x: tv2F.adjust_saturation(x, self.config.saturation_factor), tv_tensors.Image)
         ]
