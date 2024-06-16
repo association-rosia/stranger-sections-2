@@ -7,7 +7,7 @@ from torchvision import tv_tensors
 from src.data import collate
 from src.data.processor import SS2ImageProcessor, AugmentationMode, PreprocessingMode
 from src.data.tiling import Tiler
-from src.models.train_model import load_model
+from src.models.train_model import load_lightning
 from src.submissions.tta import TestTimeAugmenter
 from src.utils.cls import Config, ModelName
 
@@ -35,7 +35,7 @@ class SS2InferenceModel(torch.nn.Module):
         )
 
     def _get_model(self):
-        model = load_model(self.config, map_location=self.map_location)
+        model = load_lightning(self.config, map_location=self.map_location)
         if hasattr(model, 'model'):
             model = model.model
         else:

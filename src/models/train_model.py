@@ -13,10 +13,13 @@ import pytorch_lightning as pl
 import wandb
 
 import torch
-import src.models.semi_supervised.segformer.lightning as ssp_sfm
-import src.models.semi_supervised.mask2former.lightning as ssp_m2f
+
 import src.models.supervised.segformer.lightning as spv_sfm
 import src.models.supervised.mask2former.lightning as spv_m2f
+
+import src.models.semi_supervised.segformer.lightning as ssp_sfm
+import src.models.semi_supervised.mask2former.lightning as ssp_m2f
+
 from src.utils import func
 from src.utils.cls import Config, TrainingMode, ModelName
 
@@ -28,9 +31,9 @@ def main():
     config = func.load_config('main')
     wandb_config = func.init_wandb(model_name, mode)
     config = Config(config, wandb_config)
-    model = load_model(config)
+    lightning = load_lightning(config)
     trainer = get_trainer(config)
-    trainer.fit(model=model)
+    trainer.fit(model=lightning)
     wandb.finish()
 
 
@@ -43,23 +46,22 @@ def parse_args():
     return args.model_name, args.mode
 
 
-def load_model(config: Config, map_location=None):
+def load_lightning(config: Config, map_location=None):
+    lightning = None
+
     if config.mode == TrainingMode.SUPERVISED:
         if config.model_name == ModelName.MASK2FORMER:
-            model = spv_m2f.load_model(config, map_location=map_location)
+            lightning = spv_m2f.load_model(config, map_location=map_location)
         elif config.model_name == ModelName.SEGFORMER:
-            model = spv_sfm.load_model(config, map_location=map_location)
+            lightning = spv_sfm.load_model(config, map_location=map_location)
 
     elif config.mode == TrainingMode.SEMI_SUPERVISED:
         if config.model_name == ModelName.SEGFORMER:
-            model = ssp_sfm.load_model(config, map_location=map_location)
+            lightning = ssp_sfm.load_model(config, map_location=map_location)
         if config.model_name == ModelName.MASK2FORMER:
-            model = ssp_m2f.load_model(config, map_location=map_location)
+            lightning = ssp_m2f.load_model(config, map_location=map_location)
 
-    if 'model' not in locals():
-        raise ValueError(f"mode={config.mode} and model_name={config.model_name} doesn't exist.")
-
-    return model
+    return lightning
 
 
 def get_trainer(config: Config):

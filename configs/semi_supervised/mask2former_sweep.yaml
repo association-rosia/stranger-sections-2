@@ -3,7 +3,7 @@ method: bayes
 program: src/models/train_model_sweep.py
 
 metric:
-  name: best/iou-micro
+  name: best/iou-macro
   goal: maximize
 
 parameters:
@@ -24,40 +24,28 @@ parameters:
     value: false
 
   contrast_factor:
-    distribution: q_uniform
-    min: 0
-    max: 10
-    q: 0.01
+    distribution: constant
+    value: 1
 
   brightness_factor:
-    distribution: q_uniform
-    min: 0
-    max: 2
-    q: 0.01
+    distribution: constant
+    value: 1
 
   gamma_factor:
-    distribution: q_uniform
-    min: 0
-    max: 2
-    q: 0.01
+    distribution: constant
+    value: 1
 
   hue_factor:
-    distribution: q_uniform
-    min: -0.5
-    max: 0.5
-    q: 0.01
+    distribution: constant
+    value: 0
 
   sharpness_factor:
-    distribution: q_uniform
-    min: 0
-    max: 100
-    q: 0.1
+    distribution: constant
+    value: 1
 
   saturation_factor:
-    distribution: q_uniform
-    min: 0
-    max: 3
-    q: 0.01
+    distribution: constant
+    value: 1
 
   tile_size:
     distribution: constant
