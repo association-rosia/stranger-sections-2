@@ -19,37 +19,41 @@ parameters:
     distribution: constant
     value: 'facebook/mask2former-swin-large-cityscapes-semantic'
 
+  sam_model_id:
+    distribution: constant
+    value: 'facebook/sam-vit-huge'
+
   do_normalize:
     distribution: constant
     value: false
 
   contrast_factor:
     distribution: q_uniform
-    min: 0.01
+    min: 1
     max: 20
     q: 0.01
 
   brightness_factor:
     distribution: q_uniform
-    min: 0.01
+    min: 1
     max: 5
     q: 0.01
 
   gamma_factor:
     distribution: q_uniform
-    min: 0.1
+    min: 1
     max: 3
-    q: 0.1
+    q: 0.01
 
   sharpness_factor:
     distribution: q_uniform
-    min: 0.01
+    min: 1
     max: 30
     q: 0.01
 
   saturation_factor:
     distribution: q_uniform
-    min: 0.01
+    min: 1
     max: 5
     q: 0.01
 
@@ -75,7 +79,7 @@ parameters:
 
   early_stopping_patience:
     distribution: constant
-    value: 15
+    value: 5
 
   reduce_lr_on_plateau_patience:
     distribution: constant
@@ -120,10 +124,6 @@ parameters:
     min: 0.95
     max: 0.999
     q: 0.001
-
-  sam_model_id:
-    distribution: constant
-    value: 'facebook/sam-vit-huge'
 
   sam_num_layers_kernel:
     distribution: q_uniform

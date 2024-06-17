@@ -26,7 +26,7 @@ def main():
         {'checkpoint': None, 'mode': TrainingMode.SUPERVISED}
     )
     lightning = load_lightning(spv_config)
-    trainer = get_trainer_supervised(spv_config)
+    trainer = get_trainer(spv_config)
     trainer.fit(model=lightning)
     del lightning, trainer
 
@@ -45,13 +45,13 @@ def main():
     lightning = load_lightning(ssp_config)
     lightning.student = ckpt_model.model
     lightning.teacher = ckpt_model.model
-    trainer = get_trainer_semi_supervised(ssp_config)
+    trainer = get_trainer(ssp_config)
     trainer.fit(model=lightning)
 
     wandb.finish()
 
 
-def get_trainer_supervised(config: Config):
+def get_trainer(config: Config):
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
         save_top_k=1,
         monitor='val/iou-macro',
@@ -86,39 +86,6 @@ def get_trainer_supervised(config: Config):
             precision='16-mixed',
             logger=pl.loggers.WandbLogger(),
             callbacks=[checkpoint_callback, early_stopping_callback],
-        )
-
-    return trainer
-
-
-def get_trainer_semi_supervised(config: Config):
-    checkpoint_callback = pl.callbacks.ModelCheckpoint(
-        save_top_k=1,
-        monitor='val/iou-macro',
-        mode='max',
-        dirpath=config.path.models,
-        filename=f'{wandb.run.name}-{wandb.run.id}-ssp',
-        auto_insert_metric_name=False,
-        verbose=True
-    )
-
-    if config.dry:
-        trainer = pl.Trainer(
-            max_epochs=3,
-            accelerator='gpu',
-            precision='16-mixed',
-            logger=pl.loggers.WandbLogger(),
-            callbacks=[checkpoint_callback],
-            limit_train_batches=3,
-            limit_val_batches=3,
-        )
-    else:
-        trainer = pl.Trainer(
-            max_epochs=config.max_epochs,
-            accelerator='gpu',
-            precision='16-mixed',
-            logger=pl.loggers.WandbLogger(),
-            callbacks=[checkpoint_callback],
         )
 
     return trainer
