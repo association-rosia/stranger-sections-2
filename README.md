@@ -21,8 +21,6 @@ Input image | Ground thruth | Our prediction
 :--------------------:|:--------------------:|:--------------------:|
 ![](assets/input.png) | ![](assets/gt.png) | ![](assets/pred.png)
 
-## 🏛️ Proposed solution
-
 ## 🔬 References
 
 Zhang, Y., Cheng, Y., & Qi, Y. (2023). SemiSAM: Exploring SAM for Enhancing Semi-Supervised Medical Image Segmentation with Extremely Limited Annotations. arXiv preprint arXiv:2312.06316.
