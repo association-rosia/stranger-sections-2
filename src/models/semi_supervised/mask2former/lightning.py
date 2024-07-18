@@ -332,7 +332,7 @@ def load_model(config: Config, map_location=None):
         lightning = Mask2FormerLightning(config)
     else:
         path_checkpoint = os.path.join(config.path.models, config.checkpoint)
-        lightning = Mask2FormerLightning.load_from_checkpoint(path_checkpoint, config=config, map_location=map_location)
+        lightning = Mask2FormerLightning.load_from_checkpoint(path_checkpoint, config=config, map_location=map_location, strict=False)
 
     return lightning
 

@@ -3,7 +3,7 @@ method: bayes
 program: src/models/train_model_sweep.py
 
 metric:
-  name: best/iou-micro
+  name: best/iou-macro
   goal: maximize
 
 parameters:
@@ -19,44 +19,24 @@ parameters:
     distribution: constant
     value: 'facebook/mask2former-swin-large-cityscapes-semantic'
 
+  sam_model_id:
+    distribution: constant
+    value: 'facebook/sam-vit-huge'
+
   do_normalize:
     distribution: constant
     value: false
 
   contrast_factor:
     distribution: q_uniform
-    min: 0
-    max: 10
-    q: 0.01
-
-  brightness_factor:
-    distribution: q_uniform
-    min: 0
-    max: 2
-    q: 0.01
-
-  gamma_factor:
-    distribution: q_uniform
-    min: 0
-    max: 2
-    q: 0.01
-
-  hue_factor:
-    distribution: q_uniform
-    min: -0.5
-    max: 0.5
+    min: 1
+    max: 20
     q: 0.01
 
   sharpness_factor:
     distribution: q_uniform
-    min: 0
-    max: 100
-    q: 0.1
-
-  saturation_factor:
-    distribution: q_uniform
-    min: 0
-    max: 3
+    min: 1
+    max: 30
     q: 0.01
 
   tile_size:
@@ -81,7 +61,7 @@ parameters:
 
   early_stopping_patience:
     distribution: constant
-    value: 15
+    value: 5
 
   reduce_lr_on_plateau_patience:
     distribution: constant
@@ -126,10 +106,6 @@ parameters:
     min: 0.95
     max: 0.999
     q: 0.001
-
-  sam_model_id:
-    distribution: constant
-    value: 'facebook/sam-vit-huge'
 
   sam_num_layers_kernel:
     distribution: q_uniform

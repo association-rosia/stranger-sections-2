@@ -7,31 +7,30 @@ from PIL import Image
 from tqdm import tqdm
 
 from src.submissions.model import SS2InferenceModel
-from src.submissions.tta import TestTimeAugmenter
 from src.utils import func
-from src.utils.cls import Config
+from src.utils.cls import Config, TrainingMode
 
 
 def main():
     base_config = func.load_config('main')
-    wandb_run = func.get_run('mlmyc2ql') #  jaom0qef
+    wandb_run = func.get_run('kyxcee1p') #  jaom0qef
     submission_name = f'{wandb_run.name}-{wandb_run.id}'
-    device = 'cuda:1'
+    device = 'cuda:0'
     tile_sizes = [
         wandb_run.config['tile_size'],
         # 512
     ]
     checkpoint_types = [
-        'micro',
-        'macro',
+        'spv-v1',
     ]
     tta_ks = [
-        1,
+        # 1,
         'max',
     ]
 
     for checkpoint_type, tile_size, tta_k in product(checkpoint_types, tile_sizes, tta_ks):
         wandb_run.config['checkpoint'] = f'{wandb_run.name}-{wandb_run.id}-{checkpoint_type}.ckpt'
+        wandb_run.config['mode'] =  TrainingMode.SEMI_SUPERVISED
         config = Config(base_config, wandb_run.config)
         pathname = os.path.join(config.path.data.raw.test.unlabeled, '*.JPG')
 

@@ -1,4 +1,4 @@
-dry: false
+dry: true
 
 mode: 'supervised'
 model_name: 'mask2former'
