@@ -17,6 +17,10 @@ Leaderboard podium:
 
 ## 🖼️ Result example
 
+Input image | Ground thruth | Our prediction
+:--------------------:|:--------------------:|:--------------------:|
+![](assets/aerial.png) | ![](assets/label.png) | ![](assets/pred.png)
+
 ## 🏛️ Proposed solution
 
 ## #️⃣ Command lines
