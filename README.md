@@ -23,8 +23,6 @@ Input image | Ground thruth | Our prediction
 
 ## 🏛️ Proposed solution
 
-## #️⃣ Command lines
-
 ## 🔬 References
 
 ## 📝 Citing
