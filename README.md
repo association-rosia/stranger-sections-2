@@ -19,7 +19,7 @@ Leaderboard podium:
 
 Input image | Ground thruth | Our prediction
 :--------------------:|:--------------------:|:--------------------:|
-![](assets/aerial.png) | ![](assets/label.png) | ![](assets/pred.png)
+![](assets/input.png) | ![](assets/gt.png) | ![](assets/pred.png)
 
 ## 🏛️ Proposed solution
 
