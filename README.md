@@ -25,6 +25,16 @@ Input image | Ground thruth | Our prediction
 
 ## 🔬 References
 
+Zhang, Y., Cheng, Y., & Qi, Y. (2023). SemiSAM: Exploring SAM for Enhancing Semi-Supervised Medical Image Segmentation with Extremely Limited Annotations. arXiv preprint arXiv:2312.06316.
+
+Jiao, R., Zhang, Y., Ding, L., Xue, B., Zhang, J., Cai, R., & Jin, C. (2023). Learning with limited annotations: a survey on deep semi-supervised learning for medical image segmentation. Computers in Biology and Medicine, 107840.
+
+Li, N., Xiong, L., Qiu, W., Pan, Y., Luo, Y., & Zhang, Y. (2023, November). Segment anything model for semi-supervised medical image segmentation via selecting reliable pseudo-labels. In International Conference on Neural Information Processing (pp. 138-149). Singapore: Springer Nature Singapore.
+
+Chen, T., Mai, Z., Li, R., & Chao, W. L. (2023). Segment anything model (sam) enhanced pseudo labels for weakly supervised semantic segmentation. arXiv preprint arXiv:2305.05803.
+
+Peláez-Vegas, A., Mesejo, P., & Luengo, J. (2023). A survey on semi-supervised semantic segmentation. arXiv preprint arXiv:2302.09899.
+
 ## 📝 Citing
 
 ```
