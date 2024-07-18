@@ -10,10 +10,10 @@ This project was made possible by our compute partners [2CRSi](https://2crsi.com
 The score of the challenge was a micro DICE coefficient.  
 Our solution was the top 10% (out of 296 teams) with a micro DICE coefficient equal to 0.5844 🎉.
 
-*Prediction Leaderboard* podium:  
-🥇 RosIA - 0.65  
-🥈 Kyle Peters - 0.64  
-🥉 Harshit Sheoran - 0.62 
+Leaderboard podium:  
+🥇 Sheoran - 0.6672  
+🥈 flamethrower - 0.6615   
+🥉 V P - 0.6588 
 
 ## 🖼️ Result example
 
